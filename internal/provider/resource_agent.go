@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -23,8 +24,10 @@ type AgentModel struct {
 	Id          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Model       types.String `tfsdk:"model"`
+	ModelSpeed  types.String `tfsdk:"model_speed"`
 	System      types.String `tfsdk:"system"`
 	Description types.String `tfsdk:"description"`
+	Tools       types.String `tfsdk:"tools"`
 	Version     types.Int64  `tfsdk:"version"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
@@ -35,26 +38,58 @@ type agentAPIResponse struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Model struct {
-		ID string `json:"id"`
+		ID    string `json:"id"`
+		Speed string `json:"speed"`
 	} `json:"model"`
-	System      *string `json:"system"`
-	Description *string `json:"description"`
-	Version     int     `json:"version"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
-	ArchivedAt  *string `json:"archived_at"`
+	System      *string           `json:"system"`
+	Description *string           `json:"description"`
+	Tools       []json.RawMessage `json:"tools"`
+	Version     int               `json:"version"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+	ArchivedAt  *string           `json:"archived_at"`
 }
 
 func (m *AgentModel) fill(a agentAPIResponse) {
 	m.Id = types.StringValue(a.ID)
 	m.Name = types.StringValue(a.Name)
 	m.Model = types.StringValue(a.Model.ID)
+	m.ModelSpeed = types.StringValue(a.Model.Speed)
 	m.Version = types.Int64Value(int64(a.Version))
 	m.CreatedAt = types.StringValue(a.CreatedAt)
 	m.UpdatedAt = types.StringValue(a.UpdatedAt)
 	m.System = nullableString(a.System)
 	m.Description = nullableString(a.Description)
 	m.ArchivedAt = nullableString(a.ArchivedAt)
+	if len(a.Tools) > 0 {
+		b, _ := json.Marshal(a.Tools)
+		m.Tools = types.StringValue(string(b))
+	} else {
+		m.Tools = types.StringValue("[]")
+	}
+}
+
+func buildAgentBody(data AgentModel) map[string]any {
+	body := map[string]any{
+		"name": data.Name.ValueString(),
+		"model": map[string]string{
+			"id":    data.Model.ValueString(),
+			"speed": data.ModelSpeed.ValueString(),
+		},
+	}
+	if !data.System.IsNull() && !data.System.IsUnknown() {
+		body["system"] = data.System.ValueString()
+	}
+	if !data.Description.IsNull() && !data.Description.IsUnknown() {
+		body["description"] = data.Description.ValueString()
+	}
+	if !data.Tools.IsNull() && !data.Tools.IsUnknown() {
+		var tools []interface{}
+		if err := json.Unmarshal([]byte(data.Tools.ValueString()), &tools); err == nil && len(tools) > 0 {
+			body["tools"] = tools
+		}
+	}
+	return body
 }
 
 func NewAgentResource() resource.Resource {
@@ -79,10 +114,21 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"name": schema.StringAttribute{Required: true},
 			"model": schema.StringAttribute{
 				Required:    true,
-				Description: "Model ID, e.g. claude-opus-4-7.",
+				Description: "Model ID, e.g. claude-opus-4-7 or claude-sonnet-4-6.",
+			},
+			"model_speed": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString("standard"),
+				Description: "Inference speed: standard (default) or fast.",
 			},
 			"system":      schema.StringAttribute{Optional: true, Computed: true},
 			"description": schema.StringAttribute{Optional: true, Computed: true},
+			"tools": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
+			},
 			"version": schema.Int64Attribute{
 				Computed:      true,
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
@@ -116,18 +162,7 @@ func (r *AgentResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	body := map[string]any{
-		"name":  data.Name.ValueString(),
-		"model": map[string]string{"id": data.Model.ValueString()},
-	}
-	if !data.System.IsNull() && !data.System.IsUnknown() {
-		body["system"] = data.System.ValueString()
-	}
-	if !data.Description.IsNull() && !data.Description.IsUnknown() {
-		body["description"] = data.Description.ValueString()
-	}
-
-	raw, status, err := doRequest(ctx, r.data, http.MethodPost, "/v1/agents", body)
+	raw, status, err := doRequest(ctx, r.data, http.MethodPost, "/v1/agents", buildAgentBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
@@ -183,16 +218,8 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	body := map[string]any{
-		"name":  data.Name.ValueString(),
-		"model": map[string]string{"id": data.Model.ValueString()},
-	}
-	if !data.System.IsNull() && !data.System.IsUnknown() {
-		body["system"] = data.System.ValueString()
-	}
-	if !data.Description.IsNull() && !data.Description.IsUnknown() {
-		body["description"] = data.Description.ValueString()
-	}
+	body := buildAgentBody(data)
+	body["version"] = data.Version.ValueInt64()
 
 	raw, status, err := doRequest(ctx, r.data, http.MethodPost, "/v1/agents/"+data.Id.ValueString(), body)
 	if err != nil {

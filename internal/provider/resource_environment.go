@@ -31,6 +31,7 @@ type EnvironmentModel struct {
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
+	Packages             types.String `tfsdk:"packages"`
 	CreatedAt            types.String `tfsdk:"created_at"`
 	UpdatedAt            types.String `tfsdk:"updated_at"`
 	ArchivedAt           types.String `tfsdk:"archived_at"`
@@ -40,11 +41,12 @@ type environmentAPIResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Config *struct {
+		Packages   map[string][]string `json:"packages"`
 		Networking *struct {
-			Type                string   `json:"type"`
-			AllowedHosts        []string `json:"allowed_hosts"`
-			AllowMCPServers     *bool    `json:"allow_mcp_servers"`
-			AllowPackageManagers *bool   `json:"allow_package_managers"`
+			Type                 string   `json:"type"`
+			AllowedHosts         []string `json:"allowed_hosts"`
+			AllowMCPServers      *bool    `json:"allow_mcp_servers"`
+			AllowPackageManagers *bool    `json:"allow_package_managers"`
 		} `json:"networking"`
 	} `json:"config"`
 	CreatedAt  string  `json:"created_at"`
@@ -67,29 +69,43 @@ func (m *EnvironmentModel) fill(e environmentAPIResponse) {
 	m.ArchivedAt = nullableString(e.ArchivedAt)
 
 	emptyHosts := types.ListValueMust(types.StringType, []attr.Value{})
+
 	if e.Config == nil || e.Config.Networking == nil {
 		m.NetworkingType = types.StringValue("unrestricted")
 		m.AllowedHosts = emptyHosts
 		m.AllowMCPServers = types.BoolValue(false)
 		m.AllowPackageManagers = types.BoolValue(false)
-		return
+	} else {
+		n := e.Config.Networking
+		m.NetworkingType = types.StringValue(n.Type)
+		if n.Type == "limited" {
+			m.AllowMCPServers = nullableBool(n.AllowMCPServers)
+			m.AllowPackageManagers = nullableBool(n.AllowPackageManagers)
+			if len(n.AllowedHosts) == 0 {
+				m.AllowedHosts = emptyHosts
+			} else {
+				vals := make([]attr.Value, len(n.AllowedHosts))
+				for i, h := range n.AllowedHosts {
+					vals[i] = types.StringValue(h)
+				}
+				hosts, _ := types.ListValue(types.StringType, vals)
+				m.AllowedHosts = hosts
+			}
+		} else {
+			m.AllowedHosts = emptyHosts
+			m.AllowMCPServers = types.BoolValue(false)
+			m.AllowPackageManagers = types.BoolValue(false)
+		}
 	}
 
-	n := e.Config.Networking
-	m.NetworkingType = types.StringValue(n.Type)
-	m.AllowMCPServers = nullableBool(n.AllowMCPServers)
-	m.AllowPackageManagers = nullableBool(n.AllowPackageManagers)
-
-	if len(n.AllowedHosts) == 0 {
-		m.AllowedHosts = emptyHosts
-		return
+	if e.Config != nil && len(e.Config.Packages) > 0 {
+		b, err := json.Marshal(e.Config.Packages)
+		if err == nil {
+			m.Packages = types.StringValue(string(b))
+		}
+	} else {
+		m.Packages = types.StringNull()
 	}
-	vals := make([]attr.Value, len(n.AllowedHosts))
-	for i, h := range n.AllowedHosts {
-		vals[i] = types.StringValue(h)
-	}
-	hosts, _ := types.ListValue(types.StringType, vals)
-	m.AllowedHosts = hosts
 }
 
 func NewEnvironmentResource() resource.Resource {
@@ -105,7 +121,7 @@ func (r *EnvironmentResource) Metadata(_ context.Context, req resource.MetadataR
 
 func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages an Anthropic environment for agent sessions.",
+		Description: "Manages an Anthropic cloud environment for agent sessions.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
@@ -120,7 +136,7 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:      true,
 				Default:       stringdefault.StaticString("unrestricted"),
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Description:   "Networking mode: unrestricted (default) or limited.",
+				Description:   "unrestricted (default) or limited.",
 			},
 			"allowed_hosts": schema.ListAttribute{
 				Optional:      true,
@@ -135,14 +151,19 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:      true,
 				Default:       booldefault.StaticBool(false),
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
-				Description:   "Allow the agent session to connect to MCP servers.",
+				Description:   "Allow MCP server network access. Only applies when networking_type is limited.",
 			},
 			"allow_package_managers": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
 				Default:       booldefault.StaticBool(false),
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
-				Description:   "Allow the agent session to access package managers (npm, pip, etc).",
+				Description:   "Allow package manager network access (PyPI, npm, etc). Only applies when networking_type is limited.",
+			},
+			"packages": schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   `JSON-encoded packages to pre-install. Example: {"pip":["pandas","numpy"],"npm":["express"]}. Supported managers: apt, cargo, gem, go, npm, pip.`,
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -166,21 +187,28 @@ func (r *EnvironmentResource) Configure(_ context.Context, req resource.Configur
 	r.data = data
 }
 
-func boolPtr(b bool) *bool { return &b }
-
 func (r *EnvironmentResource) buildConfig(ctx context.Context, data EnvironmentModel) map[string]any {
-	var hosts []string
-	data.AllowedHosts.ElementsAs(ctx, &hosts, false)
+	networking := map[string]any{"type": data.NetworkingType.ValueString()}
+	if data.NetworkingType.ValueString() == "limited" {
+		var hosts []string
+		data.AllowedHosts.ElementsAs(ctx, &hosts, false)
+		if len(hosts) > 0 {
+			networking["allowed_hosts"] = hosts
+		}
+		networking["allow_mcp_servers"] = data.AllowMCPServers.ValueBool()
+		networking["allow_package_managers"] = data.AllowPackageManagers.ValueBool()
+	}
 
-	networking := map[string]any{
-		"type":                  data.NetworkingType.ValueString(),
-		"allow_mcp_servers":     data.AllowMCPServers.ValueBool(),
-		"allow_package_managers": data.AllowPackageManagers.ValueBool(),
+	config := map[string]any{"type": "cloud", "networking": networking}
+
+	if !data.Packages.IsNull() && !data.Packages.IsUnknown() && data.Packages.ValueString() != "" {
+		var pkgs map[string]interface{}
+		if err := json.Unmarshal([]byte(data.Packages.ValueString()), &pkgs); err == nil && len(pkgs) > 0 {
+			config["packages"] = pkgs
+		}
 	}
-	if data.NetworkingType.ValueString() == "limited" && len(hosts) > 0 {
-		networking["allowed_hosts"] = hosts
-	}
-	return map[string]any{"type": "cloud", "networking": networking}
+
+	return config
 }
 
 func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
