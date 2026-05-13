@@ -142,11 +142,20 @@ func resolveWorkspaceID(ctx context.Context, apiKey, name string) (string, error
 	}
 
 	var available []string
+	var defaultID string
 	for _, w := range result.Data {
 		if w.Name == name {
 			return w.ID, nil
 		}
+		if w.Name == "" {
+			defaultID = w.ID
+		}
 		available = append(available, fmt.Sprintf("%q", w.Name))
+	}
+
+	// empty workspace_name targets the default (null-named) workspace
+	if name == "" && defaultID != "" {
+		return defaultID, nil
 	}
 
 	return "", fmt.Errorf("workspace %q not found — available workspaces: [%s]", name, strings.Join(available, ", "))
