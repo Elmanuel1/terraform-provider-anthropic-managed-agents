@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-const anthropicWorkspacesURL = "https://api.anthropic.com/v1/workspaces"
+const anthropicWorkspacesURL = "https://api.anthropic.com/v1/organizations/workspaces"
 
 type tokenDataSource struct {
 	data *providerData
@@ -117,6 +117,7 @@ func resolveWorkspaceID(ctx context.Context, apiKey, name string) (string, error
 	}
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-beta", "admin-api-2025-05-21")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
