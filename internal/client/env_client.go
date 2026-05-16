@@ -32,7 +32,7 @@ type EnvironmentClient struct {
 	httpClient *http.Client
 }
 
-func NewEnvironmentClient(creds auth.Credentials) *EnvironmentClient {
+func NewEnvironmentClient(creds auth.WIFBearer) *EnvironmentClient {
 	return &EnvironmentClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
