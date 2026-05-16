@@ -15,7 +15,7 @@ func main() {
 	flag.Parse()
 
 	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
-		Address: "registry.terraform.io/build4africa/anthropic-wif",
+		Address: "registry.terraform.io/Elmanuel1/anthropic-wif",
 		Debug:   debug,
 	})
 	if err != nil {
