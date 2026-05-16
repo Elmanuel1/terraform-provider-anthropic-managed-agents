@@ -1,4 +1,4 @@
-module github.com/build4africa/terraform-provider-anthropic-wif
+module github.com/Elmanuel1/terraform-provider-anthropic-wif
 
 go 1.22.0
 
