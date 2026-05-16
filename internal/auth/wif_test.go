@@ -59,7 +59,7 @@ func TestMintToken_NilConfig(t *testing.T) {
 
 func TestMintToken_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(HeaderContentType, MIMEApplicationJSON)
 		json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "at_test",
 			"expires_in":   3600,

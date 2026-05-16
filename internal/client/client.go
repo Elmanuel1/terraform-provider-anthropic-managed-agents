@@ -77,6 +77,6 @@ func buildRequest(ctx context.Context, method, url string, body any) (*http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
-	req.Header.Set(auth.HeaderContentType, "application/json")
+	req.Header.Set(auth.HeaderContentType, auth.MIMEApplicationJSON)
 	return req, nil
 }

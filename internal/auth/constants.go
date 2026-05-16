@@ -1,6 +1,9 @@
 package auth
 
 const (
+	// Header values
+	MIMEApplicationJSON = "application/json"
+
 	// Header names
 	HeaderAPIKey      = "x-api-key"
 	HeaderVersion     = "anthropic-version"
