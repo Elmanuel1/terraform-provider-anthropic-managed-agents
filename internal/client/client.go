@@ -25,26 +25,6 @@ func (c *Config) httpClient() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
-// DoRequest calls the Managed Agents API using a WIF-minted bearer token.
-// workspaceID must be resolved by the caller (stored in resource state).
-func DoRequest(ctx context.Context, cfg *Config, workspaceID, method, path string, body any) ([]byte, int, error) {
-	if cfg == nil {
-		return nil, 0, fmt.Errorf("missing client config")
-	}
-	if cfg.WIF == nil {
-		return nil, 0, fmt.Errorf("missing WIF config")
-	}
-	return doWithCreds(ctx, cfg, auth.WIFBearer{Config: cfg.WIF, WorkspaceID: workspaceID}, method, path, body)
-}
-
-// DoAdminRequest calls the Anthropic Admin API using the provided credentials.
-func DoAdminRequest(ctx context.Context, cfg *Config, creds auth.Credentials, method, path string, body any) ([]byte, int, error) {
-	if cfg == nil {
-		return nil, 0, fmt.Errorf("missing client config")
-	}
-	return doWithCreds(ctx, cfg, creds, method, path, body)
-}
-
 func doWithCreds(ctx context.Context, cfg *Config, creds auth.Credentials, method, path string, body any) ([]byte, int, error) {
 	req, err := buildRequest(ctx, method, auth.BaseURL+path, body)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -71,7 +72,8 @@ func (d *tokenDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 
 	workspaceName := model.WorkspaceName.ValueString()
 
-	workspaceID, err := auth.ResolveWorkspaceID(ctx, auth.AdminAPIKey{Key: d.data.client.APIKey}, workspaceName)
+	wc := client.NewWorkspaceClient(d.data.client)
+	workspaceID, err := wc.ResolveByName(ctx, workspaceName)
 	if err != nil {
 		resp.Diagnostics.AddError("Workspace resolution failed", err.Error())
 		return

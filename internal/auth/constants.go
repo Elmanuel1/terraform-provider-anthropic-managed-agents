@@ -1,5 +1,8 @@
 package auth
 
+// BaseURL is the Anthropic API base URL. A var so tests can point at an httptest.Server.
+var BaseURL = "https://api.anthropic.com"
+
 const (
 	// Header values
 	MIMEApplicationJSON = "application/json"
@@ -16,6 +19,4 @@ const (
 	AdminBeta         = "admin-api-2025-05-21"
 	AgentsBeta        = "managed-agents-2026-04-01"
 
-	// Base URL
-	BaseURL = "https://api.anthropic.com"
 )

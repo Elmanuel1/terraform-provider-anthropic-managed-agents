@@ -2,11 +2,8 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -27,14 +24,7 @@ type WorkspaceModel struct {
 	ArchivedAt types.String `tfsdk:"archived_at"`
 }
 
-type workspaceAPIResponse struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	CreatedAt  string  `json:"created_at"`
-	ArchivedAt *string `json:"archived_at"`
-}
-
-func (m *WorkspaceModel) fill(w workspaceAPIResponse) {
+func (m *WorkspaceModel) fill(w client.WorkspaceResponse) {
 	m.Id = types.StringValue(w.ID)
 	m.Name = types.StringValue(w.Name)
 	m.CreatedAt = types.StringValue(w.CreatedAt)
@@ -86,10 +76,6 @@ func (r *WorkspaceResource) Configure(_ context.Context, req resource.ConfigureR
 	r.data = data
 }
 
-func (r *WorkspaceResource) creds() auth.Credentials {
-	return auth.AdminAPIKey{Key: r.data.client.APIKey}
-}
-
 func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data WorkspaceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -97,23 +83,13 @@ func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	body := map[string]any{"name": data.Name.ValueString()}
-	raw, status, err := client.DoAdminRequest(ctx, r.data.client, r.creds(), http.MethodPost, "/v1/organizations/workspaces", body)
+	c := client.NewWorkspaceClient(r.data.client)
+	w, err := c.Create(ctx, data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create workspace: %s", err))
 		return
 	}
-	if status != http.StatusOK && status != http.StatusCreated {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create workspace, status %d: %s", status, raw))
-		return
-	}
-
-	var w workspaceAPIResponse
-	if err := json.Unmarshal(raw, &w); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse workspace response: %s", err))
-		return
-	}
-	data.fill(w)
+	data.fill(*w)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -124,26 +100,17 @@ func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	raw, status, err := client.DoAdminRequest(ctx, r.data.client, r.creds(), http.MethodGet, "/v1/organizations/workspaces/"+data.Id.ValueString(), nil)
+	c := client.NewWorkspaceClient(r.data.client)
+	w, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read workspace: %s", err))
 		return
 	}
-	if status == http.StatusNotFound {
+	if w == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read workspace, status %d: %s", status, raw))
-		return
-	}
-
-	var w workspaceAPIResponse
-	if err := json.Unmarshal(raw, &w); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse workspace response: %s", err))
-		return
-	}
-	data.fill(w)
+	data.fill(*w)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -158,19 +125,15 @@ func (r *WorkspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	_, status, err := client.DoAdminRequest(ctx, r.data.client, r.creds(), http.MethodDelete, "/v1/organizations/workspaces/"+data.Id.ValueString(), nil)
-	if err != nil {
+	c := client.NewWorkspaceClient(r.data.client)
+	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete workspace: %s", err))
-		return
-	}
-	if status != http.StatusOK && status != http.StatusNoContent && status != http.StatusNotFound {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete workspace, status %d", status))
 	}
 }
 
 func (r *WorkspaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Import by name — resolve to ID, then let Read populate the rest.
-	id, err := auth.ResolveWorkspaceID(ctx, r.creds(), req.ID)
+	c := client.NewWorkspaceClient(r.data.client)
+	id, err := c.ResolveByName(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Import Error", fmt.Sprintf("Unable to resolve workspace %q: %s", req.ID, err))
 		return

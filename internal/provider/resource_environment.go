@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -15,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -34,26 +34,10 @@ type EnvironmentModel struct {
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
 	Packages             types.String `tfsdk:"packages"`
+	Metadata             types.Map    `tfsdk:"metadata"`
 	CreatedAt            types.String `tfsdk:"created_at"`
 	UpdatedAt            types.String `tfsdk:"updated_at"`
 	ArchivedAt           types.String `tfsdk:"archived_at"`
-}
-
-type environmentAPIResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Config *struct {
-		Packages   map[string][]string `json:"packages"`
-		Networking *struct {
-			Type                 string   `json:"type"`
-			AllowedHosts         []string `json:"allowed_hosts"`
-			AllowMCPServers      *bool    `json:"allow_mcp_servers"`
-			AllowPackageManagers *bool    `json:"allow_package_managers"`
-		} `json:"networking"`
-	} `json:"config"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
-	ArchivedAt *string `json:"archived_at"`
 }
 
 func nullableBool(b *bool) types.Bool {
@@ -63,7 +47,7 @@ func nullableBool(b *bool) types.Bool {
 	return types.BoolValue(*b)
 }
 
-func (m *EnvironmentModel) fill(e environmentAPIResponse) {
+func (m *EnvironmentModel) fill(e client.EnvironmentResponse) {
 	m.Id = types.StringValue(e.ID)
 	m.Name = types.StringValue(e.Name)
 	m.CreatedAt = types.StringValue(e.CreatedAt)
@@ -108,6 +92,8 @@ func (m *EnvironmentModel) fill(e environmentAPIResponse) {
 	} else {
 		m.Packages = types.StringNull()
 	}
+
+	m.Metadata = fillMetadata(e.Metadata)
 }
 
 func NewEnvironmentResource() resource.Resource {
@@ -172,6 +158,13 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 				Description:   `JSON-encoded packages to pre-install. Example: {"pip":["pandas","numpy"],"npm":["express"]}. Supported managers: apt, cargo, gem, go, npm, pip.`,
 			},
+			"metadata": schema.MapAttribute{
+				Optional:      true,
+				Computed:      true,
+				ElementType:   types.StringType,
+				PlanModifiers: []planmodifier.Map{mapplanmodifier.RequiresReplace()},
+				Description:   "Arbitrary string key-value pairs attached to the environment.",
+			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
@@ -229,23 +222,19 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 		"name":   data.Name.ValueString(),
 		"config": r.buildConfig(ctx, data),
 	}
+	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
+		meta := make(map[string]string, len(data.Metadata.Elements()))
+		data.Metadata.ElementsAs(ctx, &meta, false)
+		body["metadata"] = meta
+	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, data.WorkspaceId.ValueString(), http.MethodPost, "/v1/environments", body)
+	c := client.NewEnvironmentClient(r.data.client, data.WorkspaceId.ValueString())
+	env, err := c.Create(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment: %s", err))
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment, status %d: %s", status, raw))
-		return
-	}
-
-	var e environmentAPIResponse
-	if err := json.Unmarshal(raw, &e); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse environment response: %s", err))
-		return
-	}
-	data.fill(e)
+	data.fill(*env)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -256,26 +245,17 @@ func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, data.WorkspaceId.ValueString(), http.MethodGet, "/v1/environments/"+data.Id.ValueString(), nil)
+	c := client.NewEnvironmentClient(r.data.client, data.WorkspaceId.ValueString())
+	env, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment: %s", err))
 		return
 	}
-	if status == http.StatusNotFound {
+	if env == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment, status %d: %s", status, raw))
-		return
-	}
-
-	var e environmentAPIResponse
-	if err := json.Unmarshal(raw, &e); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse environment response: %s", err))
-		return
-	}
-	data.fill(e)
+	data.fill(*env)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -290,13 +270,9 @@ func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	_, status, err := client.DoRequest(ctx, r.data.client, data.WorkspaceId.ValueString(), http.MethodDelete, "/v1/environments/"+data.Id.ValueString(), nil)
-	if err != nil {
+	c := client.NewEnvironmentClient(r.data.client, data.WorkspaceId.ValueString())
+	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment: %s", err))
-		return
-	}
-	if status != http.StatusOK && status != http.StatusNoContent && status != http.StatusNotFound {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment, status %d", status))
 	}
 }
 
