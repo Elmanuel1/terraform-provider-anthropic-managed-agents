@@ -32,11 +32,8 @@ type AgentClient struct {
 	httpClient  *http.Client
 }
 
-func NewAgentClient(wif *auth.WIFConfig, workspaceID string, httpClient *http.Client) *AgentClient {
-	if httpClient == nil {
-		httpClient = defaultHTTPClient
-	}
-	return &AgentClient{wif: wif, workspaceID: workspaceID, httpClient: httpClient}
+func NewAgentClient(wif *auth.WIFConfig, workspaceID string) *AgentClient {
+	return &AgentClient{wif: wif, workspaceID: workspaceID, httpClient: defaultHTTPClient}
 }
 
 func (c *AgentClient) creds() auth.Credentials {

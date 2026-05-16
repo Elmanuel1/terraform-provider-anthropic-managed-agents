@@ -72,7 +72,7 @@ func (d *tokenDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 
 	workspaceName := model.WorkspaceName.ValueString()
 
-	wc := client.NewWorkspaceClient(d.data.apiKey, d.data.httpClient)
+	wc := client.NewWorkspaceClient(d.data.apiKey)
 	workspaceID, err := wc.ResolveByName(ctx, workspaceName)
 	if err != nil {
 		resp.Diagnostics.AddError("Workspace resolution failed", err.Error())

@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
@@ -20,9 +19,8 @@ func New() provider.Provider {
 type wifProvider struct{}
 
 type providerData struct {
-	apiKey     string
-	wif        *auth.WIFConfig
-	httpClient *http.Client // nil = use package default
+	apiKey string
+	wif    *auth.WIFConfig
 }
 
 func (p *wifProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {

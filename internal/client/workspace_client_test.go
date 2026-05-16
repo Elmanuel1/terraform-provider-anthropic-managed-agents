@@ -30,7 +30,7 @@ func TestWorkspaceClient_ResolveByName_Found(t *testing.T) {
 	auth.BaseURL = srv.URL
 	defer func() { auth.BaseURL = orig }()
 
-	c := NewWorkspaceClient("key-123", nil)
+	c := NewWorkspaceClient("key-123")
 	id, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -55,7 +55,7 @@ func TestWorkspaceClient_ResolveByName_NotFound(t *testing.T) {
 	auth.BaseURL = srv.URL
 	defer func() { auth.BaseURL = orig }()
 
-	c := NewWorkspaceClient("key-123", nil)
+	c := NewWorkspaceClient("key-123")
 	_, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err == nil {
 		t.Fatal("expected error when workspace not found")
@@ -77,7 +77,7 @@ func TestWorkspaceClient_ResolveByName_DefaultWorkspace(t *testing.T) {
 	auth.BaseURL = srv.URL
 	defer func() { auth.BaseURL = orig }()
 
-	c := NewWorkspaceClient("key-123", nil)
+	c := NewWorkspaceClient("key-123")
 	id, err := c.ResolveByName(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -97,7 +97,7 @@ func TestWorkspaceClient_ResolveByName_APIError(t *testing.T) {
 	auth.BaseURL = srv.URL
 	defer func() { auth.BaseURL = orig }()
 
-	c := NewWorkspaceClient("bad-key", nil)
+	c := NewWorkspaceClient("bad-key")
 	_, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err == nil {
 		t.Fatal("expected error for non-200 response")

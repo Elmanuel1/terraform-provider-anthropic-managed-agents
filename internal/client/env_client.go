@@ -33,11 +33,8 @@ type EnvironmentClient struct {
 	httpClient  *http.Client
 }
 
-func NewEnvironmentClient(wif *auth.WIFConfig, workspaceID string, httpClient *http.Client) *EnvironmentClient {
-	if httpClient == nil {
-		httpClient = defaultHTTPClient
-	}
-	return &EnvironmentClient{wif: wif, workspaceID: workspaceID, httpClient: httpClient}
+func NewEnvironmentClient(wif *auth.WIFConfig, workspaceID string) *EnvironmentClient {
+	return &EnvironmentClient{wif: wif, workspaceID: workspaceID, httpClient: defaultHTTPClient}
 }
 
 func (c *EnvironmentClient) creds() auth.Credentials {

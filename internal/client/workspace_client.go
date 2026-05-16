@@ -28,11 +28,8 @@ type WorkspaceClient struct {
 	fetchErr   error
 }
 
-func NewWorkspaceClient(apiKey string, httpClient *http.Client) *WorkspaceClient {
-	if httpClient == nil {
-		httpClient = defaultHTTPClient
-	}
-	return &WorkspaceClient{apiKey: apiKey, httpClient: httpClient}
+func NewWorkspaceClient(apiKey string) *WorkspaceClient {
+	return &WorkspaceClient{apiKey: apiKey, httpClient: defaultHTTPClient}
 }
 
 func (c *WorkspaceClient) creds() auth.Credentials {

@@ -83,7 +83,7 @@ func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(r.data.apiKey, r.data.httpClient)
+	c := client.NewWorkspaceClient(r.data.apiKey)
 	w, err := c.Create(ctx, data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create workspace: %s", err))
@@ -100,7 +100,7 @@ func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	c := client.NewWorkspaceClient(r.data.apiKey, r.data.httpClient)
+	c := client.NewWorkspaceClient(r.data.apiKey)
 	w, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read workspace: %s", err))
@@ -125,14 +125,14 @@ func (r *WorkspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(r.data.apiKey, r.data.httpClient)
+	c := client.NewWorkspaceClient(r.data.apiKey)
 	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete workspace: %s", err))
 	}
 }
 
 func (r *WorkspaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	c := client.NewWorkspaceClient(r.data.apiKey, r.data.httpClient)
+	c := client.NewWorkspaceClient(r.data.apiKey)
 	id, err := c.ResolveByName(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Import Error", fmt.Sprintf("Unable to resolve workspace %q: %s", req.ID, err))
