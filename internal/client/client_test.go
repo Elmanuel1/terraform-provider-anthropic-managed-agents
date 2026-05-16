@@ -6,16 +6,20 @@ import (
 	"time"
 )
 
-func TestResolveHTTPClient_Default(t *testing.T) {
-	c := resolveHTTPClient(nil)
-	if c.Timeout != 30*time.Second {
-		t.Errorf("expected 30s timeout, got %v", c.Timeout)
+func TestNewWorkspaceClient_DefaultHTTPClient(t *testing.T) {
+	c := NewWorkspaceClient("key", nil)
+	if c.httpClient != defaultHTTPClient {
+		t.Error("expected defaultHTTPClient when nil is passed")
+	}
+	if c.httpClient.Timeout != 30*time.Second {
+		t.Errorf("expected 30s timeout, got %v", c.httpClient.Timeout)
 	}
 }
 
-func TestResolveHTTPClient_Custom(t *testing.T) {
+func TestNewWorkspaceClient_CustomHTTPClient(t *testing.T) {
 	custom := &http.Client{Timeout: 5 * time.Second}
-	if resolveHTTPClient(custom) != custom {
-		t.Error("expected the injected client to be returned")
+	c := NewWorkspaceClient("key", custom)
+	if c.httpClient != custom {
+		t.Error("expected injected client to be used")
 	}
 }

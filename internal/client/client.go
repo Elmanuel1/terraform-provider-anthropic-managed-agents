@@ -14,13 +14,6 @@ import (
 
 var defaultHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-func resolveHTTPClient(c *http.Client) *http.Client {
-	if c != nil {
-		return c
-	}
-	return defaultHTTPClient
-}
-
 func doWithCreds(ctx context.Context, httpClient *http.Client, creds auth.Credentials, method, path string, body any) ([]byte, int, error) {
 	req, err := buildRequest(ctx, method, auth.BaseURL+path, body)
 	if err != nil {
@@ -30,7 +23,7 @@ func doWithCreds(ctx context.Context, httpClient *http.Client, creds auth.Creden
 		return nil, 0, fmt.Errorf("authenticating request: %w", err)
 	}
 
-	resp, err := resolveHTTPClient(httpClient).Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}

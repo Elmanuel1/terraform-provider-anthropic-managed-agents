@@ -29,6 +29,9 @@ type WorkspaceClient struct {
 }
 
 func NewWorkspaceClient(apiKey string, httpClient *http.Client) *WorkspaceClient {
+	if httpClient == nil {
+		httpClient = defaultHTTPClient
+	}
 	return &WorkspaceClient{apiKey: apiKey, httpClient: httpClient}
 }
 

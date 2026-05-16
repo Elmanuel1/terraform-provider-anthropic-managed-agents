@@ -34,6 +34,9 @@ type EnvironmentClient struct {
 }
 
 func NewEnvironmentClient(wif *auth.WIFConfig, workspaceID string, httpClient *http.Client) *EnvironmentClient {
+	if httpClient == nil {
+		httpClient = defaultHTTPClient
+	}
 	return &EnvironmentClient{wif: wif, workspaceID: workspaceID, httpClient: httpClient}
 }
 
