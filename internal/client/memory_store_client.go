@@ -26,7 +26,7 @@ type MemoryStoreClient struct {
 	httpClient *http.Client
 }
 
-func NewMemoryStoreClient(creds auth.WIFBearer) *MemoryStoreClient {
+func NewMemoryStoreClient(creds auth.Credentials) *MemoryStoreClient {
 	return &MemoryStoreClient{creds: creds, httpClient: defaultHTTPClient}
 }
 

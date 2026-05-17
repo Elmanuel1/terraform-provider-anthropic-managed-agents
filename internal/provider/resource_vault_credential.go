@@ -53,7 +53,7 @@ func (m *VaultCredentialModel) fill(r client.VaultCredentialResponse) {
 	m.DisplayName = nullableString(r.DisplayName)
 	m.AuthType = types.StringValue(r.Auth.Type)
 	if r.Auth.MCPServerURL != nil {
-		m.MCPServerURL = types.StringValue(*r.Auth.MCPServerURL)
+		m.MCPServerURL = types.StringValue(strings.TrimRight(*r.Auth.MCPServerURL, "/"))
 	}
 	if r.Auth.ExpiresAt != nil {
 		m.ExpiresAt = types.StringValue(*r.Auth.ExpiresAt)
