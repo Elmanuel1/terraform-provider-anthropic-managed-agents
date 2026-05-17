@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -118,6 +119,7 @@ func NewAgentResource() resource.Resource {
 
 var _ resource.Resource = &AgentResource{}
 var _ resource.ResourceWithImportState = &AgentResource{}
+var _ resource.ResourceWithModifyPlan = &AgentResource{}
 
 func (r *AgentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_agent"
@@ -181,7 +183,7 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			"version": schema.Int64Attribute{
 				Computed:      true,
-				PlanModifiers: []planmodifier.Int64{unknownOnUpdateInt64{}},
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -189,11 +191,45 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:      true,
-				PlanModifiers: []planmodifier.String{unknownOnUpdateString{}},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"archived_at": schema.StringAttribute{Computed: true},
 		},
 	}
+}
+
+// ModifyPlan marks server-managed fields (version, updated_at) as Unknown only
+// when an update is actually happening, preventing spurious no-op update plans.
+func (r *AgentResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Destroy or create — nothing to do.
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state AgentModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !agentUserFieldsChanged(plan, state) {
+		return
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("version"), types.Int64Unknown())...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("updated_at"), types.StringUnknown())...)
+}
+
+// agentUserFieldsChanged reports whether any user-controlled field differs between plan and state.
+func agentUserFieldsChanged(plan, state AgentModel) bool {
+	return !plan.Name.Equal(state.Name) ||
+		!plan.System.Equal(state.System) ||
+		!plan.Description.Equal(state.Description) ||
+		!plan.Model.Equal(state.Model) ||
+		!plan.ModelSpeed.Equal(state.ModelSpeed) ||
+		!plan.Tools.Equal(state.Tools) ||
+		!plan.MCPServers.Equal(state.MCPServers) ||
+		!plan.Skills.Equal(state.Skills) ||
+		!plan.Multiagent.Equal(state.Multiagent) ||
+		!plan.Metadata.Equal(state.Metadata)
 }
 
 func (r *AgentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

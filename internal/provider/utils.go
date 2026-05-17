@@ -1,47 +1,12 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// unknownOnUpdateInt64 marks an Int64 field as unknown during updates so Terraform
-// accepts whatever the API returns (e.g. an auto-incremented version number).
-type unknownOnUpdateInt64 struct{}
-
-func (unknownOnUpdateInt64) Description(_ context.Context) string {
-	return "Value is unknown after update — the API changes it on every write."
-}
-func (unknownOnUpdateInt64) MarkdownDescription(ctx context.Context) string {
-	return "Value is unknown after update — the API changes it on every write."
-}
-func (unknownOnUpdateInt64) PlanModifyInt64(_ context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
-	if req.StateValue.IsNull() {
-		return // create: leave as computed unknown
-	}
-	resp.PlanValue = types.Int64Unknown()
-}
-
-// unknownOnUpdateString marks a String field as unknown during updates so Terraform
-// accepts whatever the API returns (e.g. an auto-updated timestamp).
-type unknownOnUpdateString struct{}
-
-func (unknownOnUpdateString) Description(_ context.Context) string {
-	return "Value is unknown after update — the API changes it on every write."
-}
-func (unknownOnUpdateString) MarkdownDescription(ctx context.Context) string {
-	return "Value is unknown after update — the API changes it on every write."
-}
-func (unknownOnUpdateString) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	if req.StateValue.IsNull() {
-		return // create: leave as computed unknown
-	}
-	resp.PlanValue = types.StringUnknown()
-}
 
 // apiInjectedToolKeys are fields the API adds to tool objects that users never specify.
 // Stripping them keeps the stored JSON consistent with the plan value.
