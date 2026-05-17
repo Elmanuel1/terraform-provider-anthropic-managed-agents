@@ -286,6 +286,17 @@ func (r *VaultCredentialResource) Create(ctx context.Context, req resource.Creat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// WriteOnly fields are absent from the plan's new state — read them from config.
+	var cfg VaultCredentialModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.Token = cfg.Token
+	data.AccessToken = cfg.AccessToken
+	data.RefreshToken = cfg.RefreshToken
+	data.ClientSecret = cfg.ClientSecret
+
 	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
@@ -336,6 +347,17 @@ func (r *VaultCredentialResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// WriteOnly fields are absent from the plan's new state — read them from config.
+	var cfg VaultCredentialModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.Token = cfg.Token
+	data.AccessToken = cfg.AccessToken
+	data.RefreshToken = cfg.RefreshToken
+	data.ClientSecret = cfg.ClientSecret
+
 	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
