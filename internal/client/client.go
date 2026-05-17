@@ -15,6 +15,9 @@ import (
 var defaultHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func doWithCreds(ctx context.Context, httpClient *http.Client, creds auth.Credentials, method, path string, body any) ([]byte, int, error) {
+	if httpClient == nil {
+		return nil, 0, fmt.Errorf("http client is nil")
+	}
 	if creds == nil {
 		return nil, 0, fmt.Errorf("credentials are nil")
 	}

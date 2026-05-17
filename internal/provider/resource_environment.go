@@ -213,10 +213,22 @@ func (r *EnvironmentResource) buildConfig(ctx context.Context, data EnvironmentM
 	return config
 }
 
+func (r *EnvironmentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC are required for environment resources.")
+		return false
+	}
+	return true
+}
+
 func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data EnvironmentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 
@@ -246,6 +258,9 @@ func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
 	c := client.NewEnvironmentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	env, err := c.Read(ctx, data.Id.ValueString())
@@ -269,6 +284,9 @@ func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteReq
 	var data EnvironmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 

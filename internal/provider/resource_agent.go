@@ -160,10 +160,22 @@ func (r *AgentResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
+func (r *AgentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC are required for agent resources.")
+		return false
+	}
+	return true
+}
+
 func (r *AgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data AgentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 
@@ -181,6 +193,9 @@ func (r *AgentResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	var data AgentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 
@@ -204,6 +219,9 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
 	body := buildAgentBody(data)
 	body["version"] = data.Version.ValueInt64()
@@ -222,6 +240,9 @@ func (r *AgentResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	var data AgentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 
