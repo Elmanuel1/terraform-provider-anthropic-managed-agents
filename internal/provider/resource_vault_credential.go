@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -26,88 +25,112 @@ type VaultCredentialModel struct {
 	WorkspaceId types.String `tfsdk:"workspace_id"`
 	VaultId     types.String `tfsdk:"vault_id"`
 	DisplayName types.String `tfsdk:"display_name"`
-	Auth        types.String `tfsdk:"auth"`
-	Metadata    types.Map    `tfsdk:"metadata"`
 	ForceDelete types.Bool   `tfsdk:"force_delete"`
-	CreatedAt   types.String `tfsdk:"created_at"`
-	UpdatedAt   types.String `tfsdk:"updated_at"`
-	ArchivedAt  types.String `tfsdk:"archived_at"`
+	// Non-secret auth fields
+	AuthType              types.String `tfsdk:"auth_type"`
+	MCPServerURL          types.String `tfsdk:"mcp_server_url"`
+	ExpiresAt             types.String `tfsdk:"expires_at"`
+	TokenEndpoint         types.String `tfsdk:"token_endpoint"`
+	ClientID              types.String `tfsdk:"client_id"`
+	TokenEndpointAuthType types.String `tfsdk:"token_endpoint_auth_type"`
+	Scope                 types.String `tfsdk:"scope"`
+	Resource              types.String `tfsdk:"resource"`
+	// Write-only secret fields
+	Token        types.String `tfsdk:"token"`
+	AccessToken  types.String `tfsdk:"access_token"`
+	RefreshToken types.String `tfsdk:"refresh_token"`
+	ClientSecret types.String `tfsdk:"client_secret"`
+	// Server-managed
+	Metadata   types.Map    `tfsdk:"metadata"`
+	CreatedAt  types.String `tfsdk:"created_at"`
+	UpdatedAt  types.String `tfsdk:"updated_at"`
+	ArchivedAt types.String `tfsdk:"archived_at"`
 }
 
-// mergeCredentialAuth merges the API response (which strips secrets) with the prior
-// state auth JSON (which has secrets) so secrets are never lost across reads.
-func mergeCredentialAuth(priorAuth types.String, apiAuth client.VaultCredentialAuthResponse) types.String {
-	// Build the base map from non-secret API fields — used for both branches.
-	base := map[string]any{"type": apiAuth.Type}
-	if apiAuth.MCPServerURL != nil {
-		base["mcp_server_url"] = *apiAuth.MCPServerURL
-	}
-	if apiAuth.ExpiresAt != nil {
-		base["expires_at"] = *apiAuth.ExpiresAt
-	}
-	if apiAuth.Refresh != nil {
-		refresh := map[string]any{}
-		if apiAuth.Refresh.ClientID != "" {
-			refresh["client_id"] = apiAuth.Refresh.ClientID
-		}
-		if apiAuth.Refresh.TokenEndpoint != "" {
-			refresh["token_endpoint"] = apiAuth.Refresh.TokenEndpoint
-		}
-		if apiAuth.Refresh.TokenEndpointAuth != nil {
-			refresh["token_endpoint_auth"] = map[string]any{"type": apiAuth.Refresh.TokenEndpointAuth.Type}
-		}
-		if apiAuth.Refresh.Resource != nil {
-			refresh["resource"] = *apiAuth.Refresh.Resource
-		}
-		if apiAuth.Refresh.Scope != nil {
-			refresh["scope"] = *apiAuth.Refresh.Scope
-		}
-		base["refresh"] = refresh
-	}
-
-	// No prior state (e.g. post-import) — return all non-secret API fields as-is.
-	if priorAuth.IsNull() || priorAuth.IsUnknown() || priorAuth.ValueString() == "" {
-		b, _ := json.Marshal(base)
-		return types.StringValue(string(b))
-	}
-
-	// Prior state exists — overlay non-secret API fields on top to preserve secrets.
-	var m map[string]any
-	if err := json.Unmarshal([]byte(priorAuth.ValueString()), &m); err != nil {
-		return priorAuth
-	}
-	for k, v := range base {
-		m[k] = v
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return priorAuth
-	}
-	return types.StringValue(string(b))
-}
-
-func (m *VaultCredentialModel) fill(r client.VaultCredentialResponse, priorAuth types.String) {
+func (m *VaultCredentialModel) fill(r client.VaultCredentialResponse) {
 	m.Id = types.StringValue(r.ID)
 	m.VaultId = types.StringValue(r.VaultID)
 	m.DisplayName = nullableString(r.DisplayName)
+	m.AuthType = types.StringValue(r.Auth.Type)
+	if r.Auth.MCPServerURL != nil {
+		m.MCPServerURL = types.StringValue(*r.Auth.MCPServerURL)
+	}
+	if r.Auth.ExpiresAt != nil {
+		m.ExpiresAt = types.StringValue(*r.Auth.ExpiresAt)
+	} else {
+		m.ExpiresAt = types.StringNull()
+	}
+	if r.Auth.Refresh != nil {
+		m.TokenEndpoint = types.StringValue(r.Auth.Refresh.TokenEndpoint)
+		m.ClientID = types.StringValue(r.Auth.Refresh.ClientID)
+		if r.Auth.Refresh.TokenEndpointAuth != nil {
+			m.TokenEndpointAuthType = types.StringValue(r.Auth.Refresh.TokenEndpointAuth.Type)
+		}
+		m.Scope = nullableString(r.Auth.Refresh.Scope)
+		m.Resource = nullableString(r.Auth.Refresh.Resource)
+	} else {
+		m.TokenEndpoint = types.StringNull()
+		m.ClientID = types.StringNull()
+		m.TokenEndpointAuthType = types.StringNull()
+		m.Scope = types.StringNull()
+		m.Resource = types.StringNull()
+	}
 	m.CreatedAt = types.StringValue(r.CreatedAt)
 	m.UpdatedAt = types.StringValue(r.UpdatedAt)
 	m.ArchivedAt = nullableString(r.ArchivedAt)
 	m.Metadata = fillMetadata(r.Metadata)
-	m.Auth = mergeCredentialAuth(priorAuth, r.Auth)
+	// Write-only fields (token, access_token, refresh_token, client_secret) are NOT set here.
+	// They are never returned by the API and must not be written to state.
 }
 
 func buildCredentialBody(data VaultCredentialModel) (map[string]any, error) {
-	body := map[string]any{}
+	authObj := map[string]any{
+		"type":           data.AuthType.ValueString(),
+		"mcp_server_url": data.MCPServerURL.ValueString(),
+	}
+
+	switch data.AuthType.ValueString() {
+	case "static_bearer":
+		if !data.Token.IsNull() && !data.Token.IsUnknown() {
+			authObj["token"] = data.Token.ValueString()
+		}
+	case "mcp_oauth":
+		if !data.AccessToken.IsNull() && !data.AccessToken.IsUnknown() {
+			authObj["access_token"] = data.AccessToken.ValueString()
+		}
+		if !data.ExpiresAt.IsNull() && !data.ExpiresAt.IsUnknown() {
+			authObj["expires_at"] = data.ExpiresAt.ValueString()
+		}
+		if !data.TokenEndpoint.IsNull() && !data.TokenEndpoint.IsUnknown() {
+			refresh := map[string]any{
+				"token_endpoint": data.TokenEndpoint.ValueString(),
+				"client_id":      data.ClientID.ValueString(),
+			}
+			if !data.RefreshToken.IsNull() && !data.RefreshToken.IsUnknown() {
+				refresh["refresh_token"] = data.RefreshToken.ValueString()
+			}
+			if !data.TokenEndpointAuthType.IsNull() && !data.TokenEndpointAuthType.IsUnknown() {
+				tea := map[string]any{"type": data.TokenEndpointAuthType.ValueString()}
+				if !data.ClientSecret.IsNull() && !data.ClientSecret.IsUnknown() {
+					tea["client_secret"] = data.ClientSecret.ValueString()
+				}
+				refresh["token_endpoint_auth"] = tea
+			}
+			if !data.Scope.IsNull() && !data.Scope.IsUnknown() {
+				refresh["scope"] = data.Scope.ValueString()
+			}
+			if !data.Resource.IsNull() && !data.Resource.IsUnknown() {
+				refresh["resource"] = data.Resource.ValueString()
+			}
+			authObj["refresh"] = refresh
+		}
+	default:
+		return nil, fmt.Errorf("unsupported auth_type %q: must be static_bearer or mcp_oauth", data.AuthType.ValueString())
+	}
+
+	body := map[string]any{"auth": authObj}
 	if !data.DisplayName.IsNull() && !data.DisplayName.IsUnknown() {
 		body["display_name"] = data.DisplayName.ValueString()
-	}
-	if !data.Auth.IsNull() && !data.Auth.IsUnknown() {
-		var authObj map[string]any
-		if err := json.Unmarshal([]byte(data.Auth.ValueString()), &authObj); err != nil {
-			return nil, fmt.Errorf("invalid auth JSON: %w", err)
-		}
-		body["auth"] = authObj
 	}
 	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
 		meta := make(map[string]string)
@@ -150,22 +173,81 @@ func (r *VaultCredentialResource) Schema(_ context.Context, _ resource.SchemaReq
 				Optional: true,
 				Computed: true,
 			},
-			"auth": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
-				Description: "JSON-encoded auth config. Secrets (token, access_token, refresh_token, client_secret) are write-only and never returned by the API — they are preserved from prior state on each read. Fields mcp_server_url, token_endpoint, and client_id are immutable after creation.",
+			"force_delete": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
+				Description: "When true, permanently deletes the credential on destroy. When false (default), archives it instead.",
+			},
+			"auth_type": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   `Credential type: "static_bearer" or "mcp_oauth". Changing this forces a new resource.`,
+			},
+			"mcp_server_url": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "MCP server URL. Immutable after creation.",
+			},
+			"expires_at": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "OAuth token expiry timestamp, returned by the API.",
+			},
+			"token_endpoint": schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "OAuth token endpoint URL. Immutable after creation.",
+			},
+			"client_id": schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "OAuth client ID. Immutable after creation.",
+			},
+			"token_endpoint_auth_type": schema.StringAttribute{
+				Optional:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   `OAuth token endpoint auth method: "none", "client_secret_basic", or "client_secret_post". Changing this forces a new resource.`,
+			},
+			"scope": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "OAuth scope.",
+			},
+			"resource": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "OAuth resource indicator.",
+			},
+			"token": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Description: "Static bearer token. Write-only — never stored in state.",
+			},
+			"access_token": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Description: "OAuth access token. Write-only — never stored in state.",
+			},
+			"refresh_token": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Description: "OAuth refresh token. Write-only — never stored in state.",
+			},
+			"client_secret": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
+				Description: "OAuth client secret. Write-only — never stored in state.",
 			},
 			"metadata": schema.MapAttribute{
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
 				Description: "Arbitrary string key-value pairs attached to the credential.",
-			},
-			"force_delete": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-				Description: "When true, permanently deletes the credential on destroy. When false (default), archives it instead.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -208,7 +290,6 @@ func (r *VaultCredentialResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	priorAuth := data.Auth
 	body, err := buildCredentialBody(data)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid credential configuration", err.Error())
@@ -221,7 +302,7 @@ func (r *VaultCredentialResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create vault credential: %s", err))
 		return
 	}
-	data.fill(*cred, priorAuth)
+	data.fill(*cred)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -235,7 +316,6 @@ func (r *VaultCredentialResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
-	priorAuth := data.Auth
 	c := client.NewVaultCredentialClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	cred, err := c.Read(ctx, data.VaultId.ValueString(), data.Id.ValueString())
 	if err != nil {
@@ -246,7 +326,7 @@ func (r *VaultCredentialResource) Read(ctx context.Context, req resource.ReadReq
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	data.fill(*cred, priorAuth)
+	data.fill(*cred)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -260,7 +340,6 @@ func (r *VaultCredentialResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	priorAuth := data.Auth
 	body, err := buildCredentialBody(data)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid credential configuration", err.Error())
@@ -273,7 +352,7 @@ func (r *VaultCredentialResource) Update(ctx context.Context, req resource.Updat
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update vault credential: %s", err))
 		return
 	}
-	data.fill(*cred, priorAuth)
+	data.fill(*cred)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
