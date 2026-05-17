@@ -72,11 +72,7 @@ The server caps the issued lifetime at whichever of the two settings above is sm
 
 ## CEL Condition Reference
 
-The federation rule uses a CEL condition to match the JWT's `sub` claim. TFC injects a `sub` of the form:
-
-```
-organization:<org>:project:<project>:workspace:<workspace>:run_phase:(plan|apply)
-```
+The federation rule uses a CEL condition to evaluate claims from the JWT. The most common pattern matches the `sub` claim using a regular expression.
 
 A rule that allows both plan and apply phases for a single TFC workspace:
 
