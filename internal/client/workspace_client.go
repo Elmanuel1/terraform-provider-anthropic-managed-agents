@@ -35,6 +35,9 @@ func NewWorkspaceClient(creds auth.AdminAPIKey) *WorkspaceClient {
 
 // ResolveByName resolves a workspace name to its ID via the Admin API.
 // The workspace list is fetched once per client instance and cached.
+// Note: sync.Once captures the context from the first caller. If that context
+// is cancelled during the fetch, fetchErr is set permanently and all subsequent
+// calls return it. Terraform provider contexts are long-lived so this is safe in practice.
 func (c *WorkspaceClient) ResolveByName(ctx context.Context, name string) (string, error) {
 	c.once.Do(func() {
 		raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, workspacesPath, nil)
