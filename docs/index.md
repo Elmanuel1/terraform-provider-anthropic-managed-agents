@@ -6,7 +6,7 @@ description: |-
 
 # anthropic-wif Provider
 
-Manage Anthropic platform resources — workspaces, agents, environments, vaults, and vault credentials — using Terraform and Workload Identity Federation (WIF).
+Manage Anthropic platform resources (workspaces, agents, environments, vaults, and vault credentials) using Terraform and Workload Identity Federation (WIF).
 
 Workspace-scoped resources (agents, environments, vaults, vault credentials, memory stores) authenticate via a WIF bearer token minted from a TFC OIDC JWT. Workspace management uses the Anthropic Admin API key directly.
 
@@ -23,17 +23,17 @@ The provider requires:
 | `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | TFC-injected OIDC JWT | WIF resources |
 | `TFC_WORKLOAD_IDENTITY_TOKEN` | Fallback TFC OIDC JWT | WIF resources (fallback) |
 
-`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is injected automatically by Terraform Cloud when `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` is set on the workspace.
+`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is injected automatically by Terraform Cloud when `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` is set on the workspace. If `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is not set, the provider falls back to `TFC_WORKLOAD_IDENTITY_TOKEN`.
 
 ### Anthropic Console Setup
 
-1. **Workload Identity Issuer** — Console → Settings → Workload Identity → Create issuer
+1. **Workload Identity Issuer**: Console → Settings → Workload Identity → Create issuer
    - Issuer URL: `https://app.terraform.io`
    - JWKS source: `discovery`
 
-2. **Service Account** — Console → Settings → Service Accounts → Create
+2. **Service Account**: Console → Settings → Service Accounts → Create
 
-3. **Federation Rule** — Console → Settings → Federation Rules → Create
+3. **Federation Rule**: Console → Settings → Federation Rules → Create
    - Audience: `https://api.anthropic.com`
    - Subject: `organization:<tfc-org>:project:<project>:workspace:<workspace>:run_phase:apply`
    - Target: the service account from step 2

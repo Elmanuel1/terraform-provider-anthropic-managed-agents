@@ -6,7 +6,7 @@ description: |-
 
 # anthropic-wif_environment
 
-Manages an Anthropic cloud execution environment. Environments define the runtime configuration for agent sessions — networking policy, pre-installed packages, and MCP server access.
+Manages an Anthropic cloud execution environment. Environments define the runtime configuration for agent sessions: networking policy, pre-installed packages, and MCP server access.
 
 Authenticates via WIF bearer token scoped to the `workspace_id`.
 

@@ -8,7 +8,7 @@ description: |-
 
 Manages a credential inside an Anthropic vault. Credentials provide MCP server authentication for agents. Both static bearer tokens and OAuth flows are supported.
 
-Secret fields (`token`, `access_token`, `refresh_token`, `client_secret`) are **write-only** — they are sent to the API on create/update but never stored in Terraform state and never returned by reads.
+Secret fields (`token`, `access_token`, `refresh_token`, `client_secret`) are **write-only**: they are sent to the API on create/update but never stored in Terraform state and never returned by reads.
 
 Authenticates via WIF bearer token scoped to the `workspace_id`.
 
