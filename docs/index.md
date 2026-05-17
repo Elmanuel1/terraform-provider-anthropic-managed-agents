@@ -30,14 +30,26 @@ The provider requires:
 1. **Workload Identity Issuer**: Console → Settings → Workload Identity → Create issuer
    - Issuer URL: `https://app.terraform.io`
    - JWKS source: `discovery`
+   - Max token lifetime: `2h` (covers the longest TFC runs)
 
 2. **Service Account**: Console → Settings → Service Accounts → Create
+   - Assign `Workspace Developer` role on every workspace this service account needs to manage resources in
 
 3. **Federation Rule**: Console → Settings → Federation Rules → Create
-   - Audience: `https://api.anthropic.com`
-   - Subject: `organization:<tfc-org>:project:<project>:workspace:<workspace>:run_phase:apply`
+   - Issuer: the issuer from step 1
    - Target: the service account from step 2
    - Scope: `workspace:developer`
+   - Token lifetime: `2h`
+   - Match type: `CEL`
+   - CEL condition (replace `<tfc-org>`, `<tfc-project>`, `<tfc-workspace>`):
+
+   ```cel
+   claims.sub.matches("^organization:<tfc-org>:project:<tfc-project>:workspace:<tfc-workspace>:run_phase:(plan|apply)$")
+   ```
+
+   Using `(plan|apply)` allows both plan and apply phases to exchange tokens. Restricting to `apply` only is also valid if you want tighter control.
+
+See the [Authentication Events guide](guides/authentication.md) for debugging token exchange failures.
 
 ## Example Usage
 
@@ -75,3 +87,7 @@ resource "anthropic-wif_agent" "example" {
 | [`anthropic-wif_vault`](resources/vault.md) | WIF | Vault for storing credentials |
 | [`anthropic-wif_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
 | [`anthropic-wif_memory_store`](resources/memory_store.md) | WIF | Memory store for agent persistence |
+
+## Guides
+
+- [Authentication & Debugging](guides/authentication.md): how WIF token exchange works, reading authentication events, and fixing common failures.
