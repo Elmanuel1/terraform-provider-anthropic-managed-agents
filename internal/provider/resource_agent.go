@@ -269,6 +269,14 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Read version from prior state — the plan marks version Unknown so the API's
+	// incremented value is accepted, but we still need the current version number
+	// for the optimistic-lock field in the update request body.
+	var state AgentModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
@@ -278,7 +286,7 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
 		return
 	}
-	body["version"] = data.Version.ValueInt64()
+	body["version"] = state.Version.ValueInt64()
 
 	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	agent, err := c.Update(ctx, data.Id.ValueString(), body)
