@@ -31,6 +31,9 @@ type AgentModel struct {
 	System      types.String `tfsdk:"system"`
 	Description types.String `tfsdk:"description"`
 	Tools       types.String `tfsdk:"tools"`
+	MCPServers  types.String `tfsdk:"mcp_servers"`
+	Skills      types.String `tfsdk:"skills"`
+	Multiagent  types.String `tfsdk:"multiagent"`
 	Metadata    types.Map    `tfsdk:"metadata"`
 	Version     types.Int64  `tfsdk:"version"`
 	CreatedAt   types.String `tfsdk:"created_at"`
@@ -49,11 +52,13 @@ func (m *AgentModel) fill(a client.AgentResponse) {
 	m.System = nullableString(a.System)
 	m.Description = nullableString(a.Description)
 	m.ArchivedAt = nullableString(a.ArchivedAt)
-	if len(a.Tools) > 0 {
-		b, _ := json.Marshal(a.Tools)
-		m.Tools = types.StringValue(string(b))
+	m.Tools = marshalJSONList(a.Tools)
+	m.MCPServers = marshalJSONList(a.MCPServers)
+	m.Skills = marshalJSONList(a.Skills)
+	if a.Multiagent != nil {
+		m.Multiagent = types.StringValue(string(*a.Multiagent))
 	} else {
-		m.Tools = types.StringValue("[]")
+		m.Multiagent = types.StringNull()
 	}
 	m.Metadata = fillMetadata(a.Metadata)
 }
@@ -76,6 +81,24 @@ func buildAgentBody(data AgentModel) map[string]any {
 		var tools []interface{}
 		if err := json.Unmarshal([]byte(data.Tools.ValueString()), &tools); err == nil && len(tools) > 0 {
 			body["tools"] = tools
+		}
+	}
+	if !data.MCPServers.IsNull() && !data.MCPServers.IsUnknown() {
+		var mcpServers []interface{}
+		if err := json.Unmarshal([]byte(data.MCPServers.ValueString()), &mcpServers); err == nil && len(mcpServers) > 0 {
+			body["mcp_servers"] = mcpServers
+		}
+	}
+	if !data.Skills.IsNull() && !data.Skills.IsUnknown() {
+		var skills []interface{}
+		if err := json.Unmarshal([]byte(data.Skills.ValueString()), &skills); err == nil && len(skills) > 0 {
+			body["skills"] = skills
+		}
+	}
+	if !data.Multiagent.IsNull() && !data.Multiagent.IsUnknown() {
+		var multiagent interface{}
+		if err := json.Unmarshal([]byte(data.Multiagent.ValueString()), &multiagent); err == nil {
+			body["multiagent"] = multiagent
 		}
 	}
 	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
@@ -127,6 +150,21 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Computed:    true,
 				Description: `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
+			},
+			"mcp_servers": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: `JSON-encoded MCP servers array. Example: [{"name":"my-server","type":"url","url":"https://..."}]. Maximum 20, names must be unique.`,
+			},
+			"skills": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: `JSON-encoded skills array. Example: [{"type":"anthropic","skill_id":"xlsx"}]. Maximum 20.`,
+			},
+			"multiagent": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: `JSON-encoded multiagent coordinator config. Example: {"type":"coordinator","agents":["agent_id_1","agent_id_2"]}.`,
 			},
 			"metadata": schema.MapAttribute{
 				Optional:    true,

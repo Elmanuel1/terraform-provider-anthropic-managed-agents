@@ -20,6 +20,9 @@ type AgentResponse struct {
 	System      *string           `json:"system"`
 	Description *string           `json:"description"`
 	Tools       []json.RawMessage `json:"tools"`
+	MCPServers  []json.RawMessage `json:"mcp_servers"`
+	Skills      []json.RawMessage `json:"skills"`
+	Multiagent  *json.RawMessage  `json:"multiagent"`
 	Metadata    map[string]string `json:"metadata"`
 	Version     int               `json:"version"`
 	CreatedAt   string            `json:"created_at"`
