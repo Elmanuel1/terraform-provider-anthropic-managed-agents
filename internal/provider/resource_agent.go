@@ -181,13 +181,16 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			"version": schema.Int64Attribute{
 				Computed:      true,
-				PlanModifiers: []planmodifier.Int64{versionIncrementOnUpdate{}},
+				PlanModifiers: []planmodifier.Int64{unknownOnUpdateInt64{}},
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"updated_at":  schema.StringAttribute{Computed: true},
+			"updated_at": schema.StringAttribute{
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{unknownOnUpdateString{}},
+			},
 			"archived_at": schema.StringAttribute{Computed: true},
 		},
 	}

@@ -9,23 +9,38 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// versionIncrementOnUpdate marks the version field as unknown during updates
-// so Terraform doesn't enforce the prior value after the API increments it.
-type versionIncrementOnUpdate struct{}
+// unknownOnUpdateInt64 marks an Int64 field as unknown during updates so Terraform
+// accepts whatever the API returns (e.g. an auto-incremented version number).
+type unknownOnUpdateInt64 struct{}
 
-func (versionIncrementOnUpdate) Description(_ context.Context) string {
-	return "Version is unknown after update — the API increments it on every write."
+func (unknownOnUpdateInt64) Description(_ context.Context) string {
+	return "Value is unknown after update — the API changes it on every write."
 }
-func (versionIncrementOnUpdate) MarkdownDescription(ctx context.Context) string {
-	return "Version is unknown after update — the API increments it on every write."
+func (unknownOnUpdateInt64) MarkdownDescription(ctx context.Context) string {
+	return "Value is unknown after update — the API changes it on every write."
 }
-func (versionIncrementOnUpdate) PlanModifyInt64(_ context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
-	// On create the state is null — keep computed unknown so the API value is accepted.
-	// On update the state is known — mark unknown so Terraform allows the API to increment it.
+func (unknownOnUpdateInt64) PlanModifyInt64(_ context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
 	if req.StateValue.IsNull() {
-		return
+		return // create: leave as computed unknown
 	}
 	resp.PlanValue = types.Int64Unknown()
+}
+
+// unknownOnUpdateString marks a String field as unknown during updates so Terraform
+// accepts whatever the API returns (e.g. an auto-updated timestamp).
+type unknownOnUpdateString struct{}
+
+func (unknownOnUpdateString) Description(_ context.Context) string {
+	return "Value is unknown after update — the API changes it on every write."
+}
+func (unknownOnUpdateString) MarkdownDescription(ctx context.Context) string {
+	return "Value is unknown after update — the API changes it on every write."
+}
+func (unknownOnUpdateString) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.StateValue.IsNull() {
+		return // create: leave as computed unknown
+	}
+	resp.PlanValue = types.StringUnknown()
 }
 
 // apiInjectedToolKeys are fields the API adds to tool objects that users never specify.
