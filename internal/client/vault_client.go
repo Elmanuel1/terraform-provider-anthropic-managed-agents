@@ -21,20 +21,16 @@ type VaultResponse struct {
 }
 
 type VaultClient struct {
-	apiKey     string
+	creds      auth.Credentials
 	httpClient *http.Client
 }
 
-func NewVaultClient(apiKey string) *VaultClient {
-	return &VaultClient{apiKey: apiKey, httpClient: defaultHTTPClient}
-}
-
-func (c *VaultClient) creds() auth.Credentials {
-	return vaultAPIKey{key: c.apiKey}
+func NewVaultClient(creds auth.WIFBearer) *VaultClient {
+	return &VaultClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
 func (c *VaultClient) Create(ctx context.Context, body map[string]any) (*VaultResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/vaults", body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/vaults", body)
 	if err != nil {
 		return nil, fmt.Errorf("creating vault: %w", err)
 	}
@@ -50,7 +46,7 @@ func (c *VaultClient) Create(ctx context.Context, body map[string]any) (*VaultRe
 }
 
 func (c *VaultClient) Read(ctx context.Context, id string) (*VaultResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodGet, "/v1/vaults/"+url.PathEscape(id), nil)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, "/v1/vaults/"+url.PathEscape(id), nil)
 	if err != nil {
 		return nil, fmt.Errorf("reading vault: %w", err)
 	}
@@ -69,7 +65,7 @@ func (c *VaultClient) Read(ctx context.Context, id string) (*VaultResponse, erro
 }
 
 func (c *VaultClient) Update(ctx context.Context, id string, body map[string]any) (*VaultResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/vaults/"+url.PathEscape(id), body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/vaults/"+url.PathEscape(id), body)
 	if err != nil {
 		return nil, fmt.Errorf("updating vault: %w", err)
 	}
@@ -85,7 +81,7 @@ func (c *VaultClient) Update(ctx context.Context, id string, body map[string]any
 }
 
 func (c *VaultClient) Archive(ctx context.Context, id string) error {
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/vaults/"+url.PathEscape(id)+"/archive", nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/vaults/"+url.PathEscape(id)+"/archive", nil)
 	if err != nil {
 		return fmt.Errorf("archiving vault: %w", err)
 	}
@@ -96,7 +92,7 @@ func (c *VaultClient) Archive(ctx context.Context, id string) error {
 }
 
 func (c *VaultClient) Delete(ctx context.Context, id string) error {
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodDelete, "/v1/vaults/"+url.PathEscape(id), nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodDelete, "/v1/vaults/"+url.PathEscape(id), nil)
 	if err != nil {
 		return fmt.Errorf("deleting vault: %w", err)
 	}
@@ -106,18 +102,3 @@ func (c *VaultClient) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// vaultAPIKey authenticates vault/vault-credential/memory-store requests using
-// x-api-key + managed-agents beta header (not the admin beta).
-type vaultAPIKey struct {
-	key string
-}
-
-func (v vaultAPIKey) Authenticate(_ context.Context, req *http.Request) error {
-	if v.key == "" {
-		return fmt.Errorf("API key is empty")
-	}
-	req.Header.Set(auth.HeaderAPIKey, v.key)
-	req.Header.Set(auth.HeaderVersion, auth.APIVersion)
-	req.Header.Set(auth.HeaderBeta, auth.AgentsBeta)
-	return nil
-}

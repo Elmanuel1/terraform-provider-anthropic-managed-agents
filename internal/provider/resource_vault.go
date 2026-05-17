@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -20,6 +22,7 @@ type VaultResource struct {
 
 type VaultModel struct {
 	Id          types.String `tfsdk:"id"`
+	WorkspaceId types.String `tfsdk:"workspace_id"`
 	DisplayName types.String `tfsdk:"display_name"`
 	Metadata    types.Map    `tfsdk:"metadata"`
 	ForceDelete types.Bool   `tfsdk:"force_delete"`
@@ -66,6 +69,11 @@ func (r *VaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"workspace_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "ID of the workspace this resource belongs to.",
+			},
 			"display_name": schema.StringAttribute{
 				Required: true,
 			},
@@ -103,18 +111,26 @@ func (r *VaultResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
-func (r *VaultResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
+func (r *VaultResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for vault resources.")
+		return false
 	}
+	return true
+}
+
+func (r *VaultResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data VaultModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewVaultClient(r.data.apiKey)
+	c := client.NewVaultClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	v, err := c.Create(ctx, buildVaultBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create vault: %s", err))
@@ -125,17 +141,16 @@ func (r *VaultResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *VaultResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data VaultModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewVaultClient(r.data.apiKey)
+	c := client.NewVaultClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	v, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read vault: %s", err))
@@ -150,17 +165,16 @@ func (r *VaultResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (r *VaultResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data VaultModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewVaultClient(r.data.apiKey)
+	c := client.NewVaultClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	v, err := c.Update(ctx, data.Id.ValueString(), buildVaultBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update vault: %s", err))
@@ -171,17 +185,16 @@ func (r *VaultResource) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (r *VaultResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data VaultModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewVaultClient(r.data.apiKey)
+	c := client.NewVaultClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete vault: %s", err))
@@ -194,5 +207,11 @@ func (r *VaultResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *VaultResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	parts := strings.SplitN(req.ID, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/vault_id")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

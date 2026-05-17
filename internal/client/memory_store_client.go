@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 )
 
 type MemoryStoreResponse struct {
@@ -20,20 +22,16 @@ type MemoryStoreResponse struct {
 }
 
 type MemoryStoreClient struct {
-	apiKey     string
+	creds      auth.Credentials
 	httpClient *http.Client
 }
 
-func NewMemoryStoreClient(apiKey string) *MemoryStoreClient {
-	return &MemoryStoreClient{apiKey: apiKey, httpClient: defaultHTTPClient}
-}
-
-func (c *MemoryStoreClient) creds() vaultAPIKey {
-	return vaultAPIKey{key: c.apiKey}
+func NewMemoryStoreClient(creds auth.WIFBearer) *MemoryStoreClient {
+	return &MemoryStoreClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
 func (c *MemoryStoreClient) Create(ctx context.Context, body map[string]any) (*MemoryStoreResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/memory_stores", body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/memory_stores", body)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory store: %w", err)
 	}
@@ -49,7 +47,7 @@ func (c *MemoryStoreClient) Create(ctx context.Context, body map[string]any) (*M
 }
 
 func (c *MemoryStoreClient) Read(ctx context.Context, id string) (*MemoryStoreResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodGet, "/v1/memory_stores/"+url.PathEscape(id), nil)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, "/v1/memory_stores/"+url.PathEscape(id), nil)
 	if err != nil {
 		return nil, fmt.Errorf("reading memory store: %w", err)
 	}
@@ -68,7 +66,7 @@ func (c *MemoryStoreClient) Read(ctx context.Context, id string) (*MemoryStoreRe
 }
 
 func (c *MemoryStoreClient) Update(ctx context.Context, id string, body map[string]any) (*MemoryStoreResponse, error) {
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/memory_stores/"+url.PathEscape(id), body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/memory_stores/"+url.PathEscape(id), body)
 	if err != nil {
 		return nil, fmt.Errorf("updating memory store: %w", err)
 	}
@@ -84,7 +82,7 @@ func (c *MemoryStoreClient) Update(ctx context.Context, id string, body map[stri
 }
 
 func (c *MemoryStoreClient) Archive(ctx context.Context, id string) error {
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, "/v1/memory_stores/"+url.PathEscape(id)+"/archive", nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, "/v1/memory_stores/"+url.PathEscape(id)+"/archive", nil)
 	if err != nil {
 		return fmt.Errorf("archiving memory store: %w", err)
 	}
@@ -95,7 +93,7 @@ func (c *MemoryStoreClient) Archive(ctx context.Context, id string) error {
 }
 
 func (c *MemoryStoreClient) Delete(ctx context.Context, id string) error {
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodDelete, "/v1/memory_stores/"+url.PathEscape(id), nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodDelete, "/v1/memory_stores/"+url.PathEscape(id), nil)
 	if err != nil {
 		return fmt.Errorf("deleting memory store: %w", err)
 	}

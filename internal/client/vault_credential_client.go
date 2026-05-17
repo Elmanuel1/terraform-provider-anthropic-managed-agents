@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 )
 
 type VaultCredentialAuthResponse struct {
@@ -38,21 +40,17 @@ type VaultCredentialResponse struct {
 }
 
 type VaultCredentialClient struct {
-	apiKey     string
+	creds      auth.Credentials
 	httpClient *http.Client
 }
 
-func NewVaultCredentialClient(apiKey string) *VaultCredentialClient {
-	return &VaultCredentialClient{apiKey: apiKey, httpClient: defaultHTTPClient}
-}
-
-func (c *VaultCredentialClient) creds() vaultAPIKey {
-	return vaultAPIKey{key: c.apiKey}
+func NewVaultCredentialClient(creds auth.WIFBearer) *VaultCredentialClient {
+	return &VaultCredentialClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
 func (c *VaultCredentialClient) Create(ctx context.Context, vaultID string, body map[string]any) (*VaultCredentialResponse, error) {
 	path := "/v1/vaults/" + url.PathEscape(vaultID) + "/credentials"
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, path, body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, path, body)
 	if err != nil {
 		return nil, fmt.Errorf("creating vault credential: %w", err)
 	}
@@ -69,7 +67,7 @@ func (c *VaultCredentialClient) Create(ctx context.Context, vaultID string, body
 
 func (c *VaultCredentialClient) Read(ctx context.Context, vaultID, id string) (*VaultCredentialResponse, error) {
 	path := "/v1/vaults/" + url.PathEscape(vaultID) + "/credentials/" + url.PathEscape(id)
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodGet, path, nil)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("reading vault credential: %w", err)
 	}
@@ -89,7 +87,7 @@ func (c *VaultCredentialClient) Read(ctx context.Context, vaultID, id string) (*
 
 func (c *VaultCredentialClient) Update(ctx context.Context, vaultID, id string, body map[string]any) (*VaultCredentialResponse, error) {
 	path := "/v1/vaults/" + url.PathEscape(vaultID) + "/credentials/" + url.PathEscape(id)
-	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, path, body)
+	raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, path, body)
 	if err != nil {
 		return nil, fmt.Errorf("updating vault credential: %w", err)
 	}
@@ -106,7 +104,7 @@ func (c *VaultCredentialClient) Update(ctx context.Context, vaultID, id string, 
 
 func (c *VaultCredentialClient) Archive(ctx context.Context, vaultID, id string) error {
 	path := "/v1/vaults/" + url.PathEscape(vaultID) + "/credentials/" + url.PathEscape(id) + "/archive"
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodPost, path, nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodPost, path, nil)
 	if err != nil {
 		return fmt.Errorf("archiving vault credential: %w", err)
 	}
@@ -118,7 +116,7 @@ func (c *VaultCredentialClient) Archive(ctx context.Context, vaultID, id string)
 
 func (c *VaultCredentialClient) Delete(ctx context.Context, vaultID, id string) error {
 	path := "/v1/vaults/" + url.PathEscape(vaultID) + "/credentials/" + url.PathEscape(id)
-	_, status, err := doWithCreds(ctx, c.httpClient, c.creds(), http.MethodDelete, path, nil)
+	_, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodDelete, path, nil)
 	if err != nil {
 		return fmt.Errorf("deleting vault credential: %w", err)
 	}

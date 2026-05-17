@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -20,6 +22,7 @@ type MemoryStoreResource struct {
 
 type MemoryStoreModel struct {
 	Id          types.String `tfsdk:"id"`
+	WorkspaceId types.String `tfsdk:"workspace_id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	Metadata    types.Map    `tfsdk:"metadata"`
@@ -71,6 +74,11 @@ func (r *MemoryStoreResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"workspace_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "ID of the workspace this resource belongs to.",
+			},
 			"name": schema.StringAttribute{
 				Required: true,
 			},
@@ -112,18 +120,26 @@ func (r *MemoryStoreResource) Configure(_ context.Context, req resource.Configur
 	r.data = data
 }
 
-func (r *MemoryStoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
+func (r *MemoryStoreResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for memory store resources.")
+		return false
 	}
+	return true
+}
+
+func (r *MemoryStoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data MemoryStoreModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewMemoryStoreClient(r.data.apiKey)
+	c := client.NewMemoryStoreClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	s, err := c.Create(ctx, buildMemoryStoreBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create memory store: %s", err))
@@ -134,17 +150,16 @@ func (r *MemoryStoreResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 func (r *MemoryStoreResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data MemoryStoreModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewMemoryStoreClient(r.data.apiKey)
+	c := client.NewMemoryStoreClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	s, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read memory store: %s", err))
@@ -159,17 +174,16 @@ func (r *MemoryStoreResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *MemoryStoreResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data MemoryStoreModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewMemoryStoreClient(r.data.apiKey)
+	c := client.NewMemoryStoreClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	s, err := c.Update(ctx, data.Id.ValueString(), buildMemoryStoreBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update memory store: %s", err))
@@ -180,17 +194,16 @@ func (r *MemoryStoreResource) Update(ctx context.Context, req resource.UpdateReq
 }
 
 func (r *MemoryStoreResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
-		return
-	}
 	var data MemoryStoreModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	c := client.NewMemoryStoreClient(r.data.apiKey)
+	c := client.NewMemoryStoreClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete memory store: %s", err))
@@ -203,5 +216,11 @@ func (r *MemoryStoreResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 func (r *MemoryStoreResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	parts := strings.SplitN(req.ID, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/memory_store_id")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }
