@@ -17,7 +17,7 @@ The flow on each Terraform run:
 3. Anthropic validates the JWT against the registered issuer (`https://app.terraform.io`), evaluates the CEL condition on the federation rule, and if matched returns a workspace-scoped access token.
 4. All subsequent API calls for that workspace use the access token as a `Bearer` token.
 
-The provider caches the minted token per workspace ID to avoid exchanging the one-time-use JTI multiple times in parallel creates.
+The provider caches the minted token per workspace ID so parallel resource creates in the same workspace share the single minted token rather than each attempting their own exchange.
 
 ## Authentication Events Panel
 
@@ -40,7 +40,7 @@ Filter by **Issuer**, **Service account**, **Rule**, or **Outcome** to narrow re
 |---|---|---|
 | `jwks_unavailable` | Anthropic could not fetch the JWKS from `https://app.terraform.io/.well-known/jwks.json` at exchange time. Transient network issue on Anthropic's side. | Retry the TFC run. If it recurs, check the issuer's JWKS URL is reachable. |
 | `jwt_expired` | The TFC OIDC JWT had already expired when the exchange was attempted. TFC JWTs are valid for a short window. | Ensure the provider is not caching a stale JWT across multiple runs. Each new run injects a fresh token. |
-| `jti_reused` | The same JWT was used for two simultaneous exchange requests. | The provider's workspace-level token cache should prevent this. If you see it, file a bug. |
+| `jti_reused` | Only possible when **JTI replay protection is enabled** on the issuer. With it disabled (the default), this error will not appear. If you enable JTI replay protection and see this, the provider's workspace-level token cache should prevent it; file a bug if it recurs. |
 | `sub_mismatch` | The JWT's `sub` claim did not satisfy the CEL condition on the federation rule. | Check that the TFC org, project, and workspace names in the CEL regex exactly match what TFC injects. Names are case-sensitive. |
 | `rule_not_found` | The `federation_rule_id` env var points to a rule that does not exist or has been deleted. | Verify `ANTHROPIC_FEDERATION_RULE_ID` is correct. |
 | `service_account_not_found` | The `service_account_id` does not exist in the organization. | Verify `ANTHROPIC_SERVICE_ACCOUNT_ID` is correct. |
@@ -60,7 +60,7 @@ The token lifetime is controlled by two settings that must both accommodate your
 | Issuer max token lifetime | Console → Settings → Workload Identity → edit issuer | `2h` |
 | Federation rule token lifetime | Console → Settings → Federation Rules → edit rule | `2h` |
 
-The provider requests `expires_in: 5400` (90 minutes) in the token exchange body. The server caps this at whichever of the two settings above is smaller, so both must be at least `1h30m`.
+The server caps the issued lifetime at whichever of the two settings above is smaller. Set both to `2h` to cover the longest expected TFC runs.
 
 ## Debugging Checklist
 
