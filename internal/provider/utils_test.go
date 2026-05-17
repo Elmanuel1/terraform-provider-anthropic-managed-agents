@@ -3,6 +3,7 @@ package provider
 import (
 	"testing"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -52,7 +53,7 @@ func TestNullableBool_False(t *testing.T) {
 
 func TestEnvironmentModel_Fill_NoConfig(t *testing.T) {
 	var m EnvironmentModel
-	m.fill(environmentAPIResponse{
+	m.fill(client.EnvironmentResponse{
 		ID:        "env_1",
 		Name:      "test",
 		CreatedAt: "2024-01-01T00:00:00Z",
@@ -82,7 +83,7 @@ func TestEnvironmentModel_Fill_NoConfig(t *testing.T) {
 func TestEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 	trueVal := true
 	var m EnvironmentModel
-	m.fill(environmentAPIResponse{
+	m.fill(client.EnvironmentResponse{
 		ID:        "env_2",
 		Name:      "limited",
 		CreatedAt: "2024-01-01T00:00:00Z",
@@ -201,7 +202,7 @@ func TestBuildAgentBody_EmptyToolsArrayOmitted(t *testing.T) {
 func TestAgentModel_Fill(t *testing.T) {
 	desc := "an agent"
 	var m AgentModel
-	m.fill(agentAPIResponse{
+	m.fill(client.AgentResponse{
 		ID:          "agent_1",
 		Name:        "my-agent",
 		System:      nil,

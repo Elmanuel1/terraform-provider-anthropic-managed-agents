@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -23,35 +24,21 @@ type AgentResource struct {
 
 type AgentModel struct {
 	Id          types.String `tfsdk:"id"`
+	WorkspaceId types.String `tfsdk:"workspace_id"`
 	Name        types.String `tfsdk:"name"`
 	Model       types.String `tfsdk:"model"`
 	ModelSpeed  types.String `tfsdk:"model_speed"`
 	System      types.String `tfsdk:"system"`
 	Description types.String `tfsdk:"description"`
 	Tools       types.String `tfsdk:"tools"`
+	Metadata    types.Map    `tfsdk:"metadata"`
 	Version     types.Int64  `tfsdk:"version"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
 	ArchivedAt  types.String `tfsdk:"archived_at"`
 }
 
-type agentAPIResponse struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Model struct {
-		ID    string `json:"id"`
-		Speed string `json:"speed"`
-	} `json:"model"`
-	System      *string           `json:"system"`
-	Description *string           `json:"description"`
-	Tools       []json.RawMessage `json:"tools"`
-	Version     int               `json:"version"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
-	ArchivedAt  *string           `json:"archived_at"`
-}
-
-func (m *AgentModel) fill(a agentAPIResponse) {
+func (m *AgentModel) fill(a client.AgentResponse) {
 	m.Id = types.StringValue(a.ID)
 	m.Name = types.StringValue(a.Name)
 	m.Model = types.StringValue(a.Model.ID)
@@ -68,6 +55,7 @@ func (m *AgentModel) fill(a agentAPIResponse) {
 	} else {
 		m.Tools = types.StringValue("[]")
 	}
+	m.Metadata = fillMetadata(a.Metadata)
 }
 
 func buildAgentBody(data AgentModel) map[string]any {
@@ -89,6 +77,11 @@ func buildAgentBody(data AgentModel) map[string]any {
 		if err := json.Unmarshal([]byte(data.Tools.ValueString()), &tools); err == nil && len(tools) > 0 {
 			body["tools"] = tools
 		}
+	}
+	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
+		meta := make(map[string]string, len(data.Metadata.Elements()))
+		data.Metadata.ElementsAs(context.Background(), &meta, false)
+		body["metadata"] = meta
 	}
 	return body
 }
@@ -112,6 +105,11 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"workspace_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "ID of the workspace this agent belongs to.",
+			},
 			"name": schema.StringAttribute{Required: true},
 			"model": schema.StringAttribute{
 				Required:    true,
@@ -129,6 +127,12 @@ func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Computed:    true,
 				Description: `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
+			},
+			"metadata": schema.MapAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Arbitrary string key-value pairs attached to the agent.",
 			},
 			"version": schema.Int64Attribute{
 				Computed:      true,
@@ -156,29 +160,32 @@ func (r *AgentResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
+func (r *AgentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC are required for agent resources.")
+		return false
+	}
+	return true
+}
+
 func (r *AgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data AgentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, http.MethodPost, "/v1/agents", buildAgentBody(data))
+	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	agent, err := c.Create(ctx, buildAgentBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent, status %d: %s", status, raw))
-		return
-	}
-
-	var a agentAPIResponse
-	if err := json.Unmarshal(raw, &a); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse agent response: %s", err))
-		return
-	}
-	data.fill(a)
+	data.fill(*agent)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -188,27 +195,21 @@ func (r *AgentResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, http.MethodGet, "/v1/agents/"+data.Id.ValueString(), nil)
+	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	agent, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent: %s", err))
 		return
 	}
-	if status == http.StatusNotFound {
+	if agent == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent, status %d: %s", status, raw))
-		return
-	}
-
-	var a agentAPIResponse
-	if err := json.Unmarshal(raw, &a); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse agent response: %s", err))
-		return
-	}
-	data.fill(a)
+	data.fill(*agent)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -218,26 +219,20 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
 	body := buildAgentBody(data)
 	body["version"] = data.Version.ValueInt64()
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, http.MethodPost, "/v1/agents/"+data.Id.ValueString(), body)
+	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	agent, err := c.Update(ctx, data.Id.ValueString(), body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent: %s", err))
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent, status %d: %s", status, raw))
-		return
-	}
-
-	var a agentAPIResponse
-	if err := json.Unmarshal(raw, &a); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse agent response: %s", err))
-		return
-	}
-	data.fill(a)
+	data.fill(*agent)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -247,17 +242,22 @@ func (r *AgentResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	_, status, err := client.DoRequest(ctx, r.data.client, http.MethodPost, "/v1/agents/"+data.Id.ValueString()+"/archive", nil)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent: %s", err))
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
-	if status != http.StatusOK && status != http.StatusNotFound {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent, status %d", status))
+
+	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent: %s", err))
 	}
 }
 
 func (r *AgentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	parts := strings.SplitN(req.ID, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/agent_id")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

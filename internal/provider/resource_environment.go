@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -27,32 +29,17 @@ type EnvironmentResource struct {
 
 type EnvironmentModel struct {
 	Id                   types.String `tfsdk:"id"`
+	WorkspaceId          types.String `tfsdk:"workspace_id"`
 	Name                 types.String `tfsdk:"name"`
 	NetworkingType       types.String `tfsdk:"networking_type"`
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
 	Packages             types.String `tfsdk:"packages"`
+	Metadata             types.Map    `tfsdk:"metadata"`
 	CreatedAt            types.String `tfsdk:"created_at"`
 	UpdatedAt            types.String `tfsdk:"updated_at"`
 	ArchivedAt           types.String `tfsdk:"archived_at"`
-}
-
-type environmentAPIResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Config *struct {
-		Packages   map[string][]string `json:"packages"`
-		Networking *struct {
-			Type                 string   `json:"type"`
-			AllowedHosts         []string `json:"allowed_hosts"`
-			AllowMCPServers      *bool    `json:"allow_mcp_servers"`
-			AllowPackageManagers *bool    `json:"allow_package_managers"`
-		} `json:"networking"`
-	} `json:"config"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
-	ArchivedAt *string `json:"archived_at"`
 }
 
 func nullableBool(b *bool) types.Bool {
@@ -62,7 +49,7 @@ func nullableBool(b *bool) types.Bool {
 	return types.BoolValue(*b)
 }
 
-func (m *EnvironmentModel) fill(e environmentAPIResponse) {
+func (m *EnvironmentModel) fill(e client.EnvironmentResponse) {
 	m.Id = types.StringValue(e.ID)
 	m.Name = types.StringValue(e.Name)
 	m.CreatedAt = types.StringValue(e.CreatedAt)
@@ -107,6 +94,8 @@ func (m *EnvironmentModel) fill(e environmentAPIResponse) {
 	} else {
 		m.Packages = types.StringNull()
 	}
+
+	m.Metadata = fillMetadata(e.Metadata)
 }
 
 func NewEnvironmentResource() resource.Resource {
@@ -127,6 +116,11 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"id": schema.StringAttribute{
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"workspace_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Description:   "ID of the workspace this environment belongs to.",
 			},
 			"name": schema.StringAttribute{
 				Required:      true,
@@ -165,6 +159,13 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 				Description:   `JSON-encoded packages to pre-install. Example: {"pip":["pandas","numpy"],"npm":["express"]}. Supported managers: apt, cargo, gem, go, npm, pip.`,
+			},
+			"metadata": schema.MapAttribute{
+				Optional:      true,
+				Computed:      true,
+				ElementType:   types.StringType,
+				PlanModifiers: []planmodifier.Map{mapplanmodifier.RequiresReplace()},
+				Description:   "Arbitrary string key-value pairs attached to the environment.",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:      true,
@@ -212,10 +213,22 @@ func (r *EnvironmentResource) buildConfig(ctx context.Context, data EnvironmentM
 	return config
 }
 
+func (r *EnvironmentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.wif == nil {
+		diags.AddError("Missing WIF configuration",
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC are required for environment resources.")
+		return false
+	}
+	return true
+}
+
 func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data EnvironmentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
 
@@ -223,23 +236,19 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 		"name":   data.Name.ValueString(),
 		"config": r.buildConfig(ctx, data),
 	}
+	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
+		meta := make(map[string]string, len(data.Metadata.Elements()))
+		data.Metadata.ElementsAs(ctx, &meta, false)
+		body["metadata"] = meta
+	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, http.MethodPost, "/v1/environments", body)
+	c := client.NewEnvironmentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	env, err := c.Create(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment: %s", err))
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment, status %d: %s", status, raw))
-		return
-	}
-
-	var e environmentAPIResponse
-	if err := json.Unmarshal(raw, &e); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse environment response: %s", err))
-		return
-	}
-	data.fill(e)
+	data.fill(*env)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -249,27 +258,21 @@ func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if !r.requireWIF(&resp.Diagnostics) {
+		return
+	}
 
-	raw, status, err := client.DoRequest(ctx, r.data.client, http.MethodGet, "/v1/environments/"+data.Id.ValueString(), nil)
+	c := client.NewEnvironmentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	env, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment: %s", err))
 		return
 	}
-	if status == http.StatusNotFound {
+	if env == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	if status != http.StatusOK {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment, status %d: %s", status, raw))
-		return
-	}
-
-	var e environmentAPIResponse
-	if err := json.Unmarshal(raw, &e); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse environment response: %s", err))
-		return
-	}
-	data.fill(e)
+	data.fill(*env)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -283,17 +286,22 @@ func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	_, status, err := client.DoRequest(ctx, r.data.client, http.MethodDelete, "/v1/environments/"+data.Id.ValueString(), nil)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment: %s", err))
+	if !r.requireWIF(&resp.Diagnostics) {
 		return
 	}
-	if status != http.StatusOK && status != http.StatusNoContent && status != http.StatusNotFound {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment, status %d", status))
+
+	c := client.NewEnvironmentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
+	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment: %s", err))
 	}
 }
 
 func (r *EnvironmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	parts := strings.SplitN(req.ID, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/environment_id")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

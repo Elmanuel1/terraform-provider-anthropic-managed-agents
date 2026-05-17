@@ -12,67 +12,51 @@ import (
 	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 )
 
-const (
-	BaseURL    = "https://api.anthropic.com"
-	BetaHeader = "managed-agents-2026-04-01"
-	APIVersion = "2023-06-01"
-)
+var defaultHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-type Config struct {
-	WIF           *auth.WIFConfig
-	APIKey        string
-	WorkspaceName string
-	HTTPClient    *http.Client
+func doWithCreds(ctx context.Context, httpClient *http.Client, creds auth.Credentials, method, path string, body any) ([]byte, int, error) {
+	if httpClient == nil {
+		return nil, 0, fmt.Errorf("http client is nil")
+	}
+	if creds == nil {
+		return nil, 0, fmt.Errorf("credentials are nil")
+	}
+	req, err := buildRequest(ctx, method, auth.BaseURL+path, body)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := creds.Authenticate(ctx, req); err != nil {
+		return nil, 0, fmt.Errorf("authenticating request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("reading response body: %w", err)
+	}
+	return raw, resp.StatusCode, nil
 }
 
-func (c *Config) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return &http.Client{Timeout: 30 * time.Second}
-}
-
-func DoRequest(ctx context.Context, cfg *Config, method, path string, body any) ([]byte, int, error) {
-	if cfg == nil {
-		return nil, 0, fmt.Errorf("missing client config")
-	}
-	if cfg.WIF == nil {
-		return nil, 0, fmt.Errorf("missing WIF config")
-	}
-	workspaceID, err := auth.ResolveWorkspaceID(ctx, cfg.APIKey, cfg.WorkspaceName)
-	if err != nil {
-		return nil, 0, fmt.Errorf("workspace resolution: %w", err)
-	}
-
-	token, err := auth.MintToken(ctx, cfg.WIF, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("minting token: %w", err)
-	}
-
+func buildRequest(ctx context.Context, method, url string, body any) (*http.Request, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return nil, 0, fmt.Errorf("marshaling request: %w", err)
+			return nil, fmt.Errorf("marshaling request body: %w", err)
 		}
 		bodyReader = bytes.NewReader(b)
 	}
-
-	req, err := http.NewRequestWithContext(ctx, method, BaseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
-		return nil, 0, fmt.Errorf("building request: %w", err)
+		return nil, fmt.Errorf("building request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("anthropic-version", APIVersion)
-	req.Header.Set("anthropic-beta", BetaHeader)
-
-	resp, err := cfg.httpClient().Do(req)
-	if err != nil {
-		return nil, 0, fmt.Errorf("API request failed: %w", err)
+	if body != nil {
+		req.Header.Set(auth.HeaderContentType, auth.MIMEApplicationJSON)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	raw, _ := io.ReadAll(resp.Body)
-	return raw, resp.StatusCode, nil
+	return req, nil
 }

@@ -1,4 +1,4 @@
-package auth
+package client
 
 import (
 	"context"
@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
 )
 
-func TestResolveWorkspaceID_Found(t *testing.T) {
+func TestWorkspaceClient_ResolveByName_Found(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("x-api-key") != "key-123" {
+		if r.Header.Get(auth.HeaderAPIKey) != "key-123" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(auth.HeaderContentType, auth.MIMEApplicationJSON)
 		json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]string{
 				{"id": "wrkspc_abc", "name": "tosspaper"},
@@ -24,11 +26,12 @@ func TestResolveWorkspaceID_Found(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	orig := anthropicWorkspacesURL
-	anthropicWorkspacesURL = srv.URL
-	defer func() { anthropicWorkspacesURL = orig }()
+	orig := auth.BaseURL
+	auth.BaseURL = srv.URL
+	defer func() { auth.BaseURL = orig }()
 
-	id, err := ResolveWorkspaceID(context.Background(), "key-123", "tosspaper")
+	c := NewWorkspaceClient(auth.AdminAPIKey{Key: "key-123"})
+	id, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -37,9 +40,9 @@ func TestResolveWorkspaceID_Found(t *testing.T) {
 	}
 }
 
-func TestResolveWorkspaceID_NotFound(t *testing.T) {
+func TestWorkspaceClient_ResolveByName_NotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(auth.HeaderContentType, auth.MIMEApplicationJSON)
 		json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]string{
 				{"id": "wrkspc_abc", "name": "other"},
@@ -48,19 +51,20 @@ func TestResolveWorkspaceID_NotFound(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	orig := anthropicWorkspacesURL
-	anthropicWorkspacesURL = srv.URL
-	defer func() { anthropicWorkspacesURL = orig }()
+	orig := auth.BaseURL
+	auth.BaseURL = srv.URL
+	defer func() { auth.BaseURL = orig }()
 
-	_, err := ResolveWorkspaceID(context.Background(), "key-123", "tosspaper")
+	c := NewWorkspaceClient(auth.AdminAPIKey{Key: "key-123"})
+	_, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err == nil {
 		t.Fatal("expected error when workspace not found")
 	}
 }
 
-func TestResolveWorkspaceID_DefaultWorkspace(t *testing.T) {
+func TestWorkspaceClient_ResolveByName_DefaultWorkspace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(auth.HeaderContentType, auth.MIMEApplicationJSON)
 		json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]string{
 				{"id": "wrkspc_default", "name": ""},
@@ -69,11 +73,12 @@ func TestResolveWorkspaceID_DefaultWorkspace(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	orig := anthropicWorkspacesURL
-	anthropicWorkspacesURL = srv.URL
-	defer func() { anthropicWorkspacesURL = orig }()
+	orig := auth.BaseURL
+	auth.BaseURL = srv.URL
+	defer func() { auth.BaseURL = orig }()
 
-	id, err := ResolveWorkspaceID(context.Background(), "key-123", "")
+	c := NewWorkspaceClient(auth.AdminAPIKey{Key: "key-123"})
+	id, err := c.ResolveByName(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,17 +87,18 @@ func TestResolveWorkspaceID_DefaultWorkspace(t *testing.T) {
 	}
 }
 
-func TestResolveWorkspaceID_APIError(t *testing.T) {
+func TestWorkspaceClient_ResolveByName_APIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 	}))
 	defer srv.Close()
 
-	orig := anthropicWorkspacesURL
-	anthropicWorkspacesURL = srv.URL
-	defer func() { anthropicWorkspacesURL = orig }()
+	orig := auth.BaseURL
+	auth.BaseURL = srv.URL
+	defer func() { auth.BaseURL = orig }()
 
-	_, err := ResolveWorkspaceID(context.Background(), "bad-key", "tosspaper")
+	c := NewWorkspaceClient(auth.AdminAPIKey{Key: "bad-key"})
+	_, err := c.ResolveByName(context.Background(), "tosspaper")
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}

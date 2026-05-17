@@ -145,7 +145,7 @@ func MintToken(ctx context.Context, cfg *WIFConfig, workspaceID string) (*Minted
 	if err != nil {
 		return nil, fmt.Errorf("building HTTP request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(HeaderContentType, MIMEApplicationJSON)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
