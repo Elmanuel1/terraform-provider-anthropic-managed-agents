@@ -12,7 +12,7 @@ import (
 
 type VaultCredentialAuthResponse struct {
 	Type         string                          `json:"type"`
-	MCPServerURL string                          `json:"mcp_server_url"`
+	MCPServerURL *string                         `json:"mcp_server_url,omitempty"`
 	ExpiresAt    *string                         `json:"expires_at,omitempty"`
 	Refresh      *VaultCredentialRefreshResponse `json:"refresh,omitempty"`
 }

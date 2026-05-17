@@ -14,7 +14,7 @@ All notable changes to this provider are documented here.
 
 ### Notes
 
-- All three new resources use `x-api-key` auth with the `managed-agents-2026-04-01` beta header. No `workspace_id` is required — the workspace context is implicit from the API key.
+- All three new resources are workspace-scoped and require a `workspace_id` field (Required, forces replacement). The workspace ID is used to mint a WIF bearer token — the same auth mechanism as agents and environments.
 - All three support soft-delete (archive) by default. Set `force_delete = true` to permanently delete a resource.
 
 ---

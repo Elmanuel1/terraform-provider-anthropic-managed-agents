@@ -37,27 +37,16 @@ type VaultCredentialModel struct {
 // mergeCredentialAuth merges the API response (which strips secrets) with the prior
 // state auth JSON (which has secrets) so secrets are never lost across reads.
 func mergeCredentialAuth(priorAuth types.String, apiAuth client.VaultCredentialAuthResponse) types.String {
-	if priorAuth.IsNull() || priorAuth.IsUnknown() || priorAuth.ValueString() == "" {
-		b, _ := json.Marshal(map[string]any{
-			"type":           apiAuth.Type,
-			"mcp_server_url": apiAuth.MCPServerURL,
-		})
-		return types.StringValue(string(b))
+	// Build the base map from non-secret API fields — used for both branches.
+	base := map[string]any{"type": apiAuth.Type}
+	if apiAuth.MCPServerURL != nil {
+		base["mcp_server_url"] = *apiAuth.MCPServerURL
 	}
-	var m map[string]any
-	if err := json.Unmarshal([]byte(priorAuth.ValueString()), &m); err != nil {
-		return priorAuth
-	}
-	m["type"] = apiAuth.Type
-	m["mcp_server_url"] = apiAuth.MCPServerURL
 	if apiAuth.ExpiresAt != nil {
-		m["expires_at"] = *apiAuth.ExpiresAt
+		base["expires_at"] = *apiAuth.ExpiresAt
 	}
 	if apiAuth.Refresh != nil {
-		refresh, _ := m["refresh"].(map[string]any)
-		if refresh == nil {
-			refresh = map[string]any{}
-		}
+		refresh := map[string]any{}
 		if apiAuth.Refresh.ClientID != "" {
 			refresh["client_id"] = apiAuth.Refresh.ClientID
 		}
@@ -73,7 +62,22 @@ func mergeCredentialAuth(priorAuth types.String, apiAuth client.VaultCredentialA
 		if apiAuth.Refresh.Scope != nil {
 			refresh["scope"] = *apiAuth.Refresh.Scope
 		}
-		m["refresh"] = refresh
+		base["refresh"] = refresh
+	}
+
+	// No prior state (e.g. post-import) — return all non-secret API fields as-is.
+	if priorAuth.IsNull() || priorAuth.IsUnknown() || priorAuth.ValueString() == "" {
+		b, _ := json.Marshal(base)
+		return types.StringValue(string(b))
+	}
+
+	// Prior state exists — overlay non-secret API fields on top to preserve secrets.
+	var m map[string]any
+	if err := json.Unmarshal([]byte(priorAuth.ValueString()), &m); err != nil {
+		return priorAuth
+	}
+	for k, v := range base {
+		m[k] = v
 	}
 	b, err := json.Marshal(m)
 	if err != nil {
