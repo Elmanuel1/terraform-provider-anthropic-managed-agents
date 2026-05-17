@@ -20,10 +20,10 @@ The provider requires:
 | `ANTHROPIC_FEDERATION_RULE_ID` | Federation rule ID (`fdrl_...`) | WIF resources |
 | `ANTHROPIC_ORGANIZATION_ID` | Anthropic organization UUID | WIF resources |
 | `ANTHROPIC_SERVICE_ACCOUNT_ID` | Service account ID (`svac_...`) | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | TFC-injected OIDC JWT | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN` | Fallback TFC OIDC JWT | WIF resources (fallback) |
+| `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | Audience-specific OIDC JWT. Set `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` on the TFC workspace and Terraform Cloud injects this automatically. | WIF resources |
+| `TFC_WORKLOAD_IDENTITY_TOKEN` | Generic OIDC JWT. Set `TFC_WORKLOAD_IDENTITY_AUDIENCE=https://api.anthropic.com` on the TFC workspace if you use the single-audience slot. The provider reads this when `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is absent. | WIF resources |
 
-`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is injected automatically by Terraform Cloud when `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` is set on the workspace. If `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is not set, the provider falls back to `TFC_WORKLOAD_IDENTITY_TOKEN`.
+Use `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC` (audience-specific) when the workspace already uses `TFC_WORKLOAD_IDENTITY_AUDIENCE` for another provider. Use the generic `TFC_WORKLOAD_IDENTITY_AUDIENCE` slot if Anthropic is the only workload identity consumer in that workspace.
 
 ### Anthropic Console Setup
 

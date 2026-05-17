@@ -12,7 +12,7 @@ Every workspace-scoped resource (agent, environment, vault, vault credential, me
 
 The flow on each Terraform run:
 
-1. Terraform Cloud injects an OIDC JWT into `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` (or `TFC_WORKLOAD_IDENTITY_TOKEN` as fallback).
+1. Terraform Cloud injects an OIDC JWT. Which variable it lands in depends on how your TFC workspace is configured: `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` when `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC` is set, or `TFC_WORKLOAD_IDENTITY_TOKEN` when `TFC_WORKLOAD_IDENTITY_AUDIENCE` is set. The provider reads whichever is present.
 2. The provider sends the JWT to `https://api.anthropic.com/v1/oauth/token` along with your `federation_rule_id`, `organization_id`, `service_account_id`, and `workspace_id`.
 3. Anthropic validates the JWT against the registered issuer (`https://app.terraform.io`), evaluates the CEL condition on the federation rule, and if matched returns a workspace-scoped access token.
 4. All subsequent API calls for that workspace use the access token as a `Bearer` token.
