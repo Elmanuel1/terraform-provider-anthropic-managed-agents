@@ -63,7 +63,7 @@ func (m *AgentModel) fill(a client.AgentResponse) {
 	m.Metadata = fillMetadata(a.Metadata)
 }
 
-func buildAgentBody(data AgentModel) map[string]any {
+func buildAgentBody(data AgentModel) (map[string]any, error) {
 	body := map[string]any{
 		"name": data.Name.ValueString(),
 		"model": map[string]string{
@@ -79,34 +79,38 @@ func buildAgentBody(data AgentModel) map[string]any {
 	}
 	if !data.Tools.IsNull() && !data.Tools.IsUnknown() {
 		var tools []interface{}
-		if err := json.Unmarshal([]byte(data.Tools.ValueString()), &tools); err == nil {
-			body["tools"] = tools
+		if err := json.Unmarshal([]byte(data.Tools.ValueString()), &tools); err != nil {
+			return nil, fmt.Errorf("invalid tools JSON: %w", err)
 		}
+		body["tools"] = tools
 	}
 	if !data.MCPServers.IsNull() && !data.MCPServers.IsUnknown() {
 		var mcpServers []interface{}
-		if err := json.Unmarshal([]byte(data.MCPServers.ValueString()), &mcpServers); err == nil {
-			body["mcp_servers"] = mcpServers
+		if err := json.Unmarshal([]byte(data.MCPServers.ValueString()), &mcpServers); err != nil {
+			return nil, fmt.Errorf("invalid mcp_servers JSON: %w", err)
 		}
+		body["mcp_servers"] = mcpServers
 	}
 	if !data.Skills.IsNull() && !data.Skills.IsUnknown() {
 		var skills []interface{}
-		if err := json.Unmarshal([]byte(data.Skills.ValueString()), &skills); err == nil {
-			body["skills"] = skills
+		if err := json.Unmarshal([]byte(data.Skills.ValueString()), &skills); err != nil {
+			return nil, fmt.Errorf("invalid skills JSON: %w", err)
 		}
+		body["skills"] = skills
 	}
 	if !data.Multiagent.IsNull() && !data.Multiagent.IsUnknown() {
 		var multiagent interface{}
-		if err := json.Unmarshal([]byte(data.Multiagent.ValueString()), &multiagent); err == nil {
-			body["multiagent"] = multiagent
+		if err := json.Unmarshal([]byte(data.Multiagent.ValueString()), &multiagent); err != nil {
+			return nil, fmt.Errorf("invalid multiagent JSON: %w", err)
 		}
+		body["multiagent"] = multiagent
 	}
 	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
 		meta := make(map[string]string, len(data.Metadata.Elements()))
 		data.Metadata.ElementsAs(context.Background(), &meta, false)
 		body["metadata"] = meta
 	}
-	return body
+	return body, nil
 }
 
 func NewAgentResource() resource.Resource {
@@ -205,7 +209,7 @@ func (r *AgentResource) Configure(_ context.Context, req resource.ConfigureReque
 func (r *AgentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
 	if r.data == nil || r.data.wif == nil {
 		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC are required for agent resources.")
+			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for agent resources.")
 		return false
 	}
 	return true
@@ -221,8 +225,13 @@ func (r *AgentResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	body, err := buildAgentBody(data)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
+		return
+	}
 	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Create(ctx, buildAgentBody(data))
+	agent, err := c.Create(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
@@ -265,7 +274,11 @@ func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	body := buildAgentBody(data)
+	body, err := buildAgentBody(data)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
+		return
+	}
 	body["version"] = data.Version.ValueInt64()
 
 	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})

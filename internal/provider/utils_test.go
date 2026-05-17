@@ -135,7 +135,10 @@ func TestBuildAgentBody_MinimalFields(t *testing.T) {
 		Tools:      types.StringNull(),
 	}
 
-	body := buildAgentBody(data)
+	body, err := buildAgentBody(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if body["name"] != "my-agent" {
 		t.Errorf("unexpected name: %v", body["name"])
@@ -168,7 +171,10 @@ func TestBuildAgentBody_AllFields(t *testing.T) {
 		Tools:       types.StringValue(`[{"type":"agent_toolset_20260401"}]`),
 	}
 
-	body := buildAgentBody(data)
+	body, err := buildAgentBody(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if body["system"] != "you are helpful" {
 		t.Errorf("unexpected system: %v", body["system"])
@@ -192,7 +198,10 @@ func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
 		Tools:      types.StringValue("[]"),
 	}
 
-	body := buildAgentBody(data)
+	body, err := buildAgentBody(data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	tools, exists := body["tools"]
 	if !exists {
