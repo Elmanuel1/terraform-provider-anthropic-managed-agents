@@ -8,7 +8,7 @@ description: |-
 
 ## How WIF Token Exchange Works
 
-Every workspace-scoped resource (agent, environment, vault, vault credential, memory store) authenticates via a short-lived bearer token obtained through Workload Identity Federation (WIF).
+The `anthropic_wif_*` resources authenticate via a short-lived bearer token obtained through Workload Identity Federation (WIF). This covers `anthropic_wif_agent`, `anthropic_wif_environment`, `anthropic_wif_vault`, and `anthropic_wif_vault_credential`.
 
 The flow on each Terraform run:
 

@@ -1,37 +1,41 @@
 ---
-page_title: "anthropic: anthropic_wif_agent"
+page_title: "anthropic: anthropic_agent"
 subcategory: ""
 description: |-
-  Manages an Anthropic agent.
+  Manages an Anthropic agent using a workspace API key.
 ---
 
-# Resource: anthropic_wif_agent
+# Resource: anthropic_agent
 
-Manages an Anthropic agent. Agents are workspace-scoped and authenticate via WIF bearer token.
+Manages an Anthropic agent. Authenticates with a workspace API key (`api_key` in the provider block or `ANTHROPIC_API_KEY`).
+
+Use this resource when you have a static workspace API key. For Terraform Cloud workspaces using OIDC federation, use [`anthropic_wif_agent`](wif_agent.md) instead.
 
 ## Example Usage
 
-### Minimal agent
+### Single workspace
 
 ```terraform
-resource "anthropic_wif_agent" "example" {
-  workspace_id = anthropic_workspace.example.id
-  name         = "my-agent"
-  model        = "claude-sonnet-4-6"
-  system       = "You are a helpful assistant."
+provider "anthropic" {
+  api_key = var.workspace_api_key
+}
+
+resource "anthropic_agent" "example" {
+  name   = "my-agent"
+  model  = "claude-sonnet-4-6"
+  system = "You are a helpful assistant."
 }
 ```
 
 ### Agent with tools and MCP servers
 
 ```terraform
-resource "anthropic_wif_agent" "example" {
-  workspace_id = anthropic_workspace.example.id
-  name         = "procurement-agent"
-  model        = "claude-opus-4-7"
-  model_speed  = "standard"
-  system       = "You are a procurement assistant."
-  description  = "Handles purchase order workflows."
+resource "anthropic_agent" "example" {
+  name        = "support-agent"
+  model       = "claude-opus-4-7"
+  model_speed = "standard"
+  system      = "You are a customer support assistant."
+  description = "Handles tier-1 support queries."
 
   tools = jsonencode([
     { "type" = "agent_toolset_20260401" }
@@ -39,31 +43,42 @@ resource "anthropic_wif_agent" "example" {
 
   mcp_servers = jsonencode([
     {
-      name = "erp-server"
+      name = "helpdesk"
       type = "url"
-      url  = "https://erp.example.com/mcp"
+      url  = "https://helpdesk.example.com/mcp"
     }
   ])
 
   metadata = {
-    team = "procurement"
+    team = "support"
     env  = "production"
   }
 }
 ```
 
-### Multi-agent coordinator
+### Multiple workspaces
 
 ```terraform
-resource "anthropic_wif_agent" "coordinator" {
-  workspace_id = anthropic_workspace.example.id
-  name         = "coordinator"
-  model        = "claude-opus-4-7"
+provider "anthropic" {
+  alias   = "workspace_a"
+  api_key = var.workspace_a_api_key
+}
 
-  multiagent = jsonencode({
-    type   = "coordinator"
-    agents = [anthropic_wif_agent.worker.id]
-  })
+provider "anthropic" {
+  alias   = "workspace_b"
+  api_key = var.workspace_b_api_key
+}
+
+resource "anthropic_agent" "agent_a" {
+  provider = anthropic.workspace_a
+  name     = "agent-a"
+  model    = "claude-sonnet-4-6"
+}
+
+resource "anthropic_agent" "agent_b" {
+  provider = anthropic.workspace_b
+  name     = "agent-b"
+  model    = "claude-sonnet-4-6"
 }
 ```
 
@@ -71,7 +86,6 @@ resource "anthropic_wif_agent" "coordinator" {
 
 This resource supports the following arguments:
 
-* `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `name` - (Required) Agent name.
 * `model` - (Required) Model ID, e.g. `claude-opus-4-7` or `claude-sonnet-4-6`.
 * `model_speed` - (Optional) Inference speed: `standard` (default) or `fast`.
@@ -95,8 +109,8 @@ In addition to all arguments above, the following attributes are exported:
 
 ## Import
 
-Import by `workspace_id/agent_id`:
+Import by agent ID:
 
 ```shell
-terraform import anthropic_wif_agent.example wrks_xxx/agt_yyy
+terraform import anthropic_agent.example agt_xxx
 ```

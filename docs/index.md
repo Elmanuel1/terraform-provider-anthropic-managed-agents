@@ -119,11 +119,11 @@ resource "anthropic_wif_agent" "example" {
 |---|---|---|
 | [`anthropic_workspace`](resources/workspace.md) | `admin_api_key` | Anthropic workspace |
 | [`anthropic_memory_store`](resources/memory_store.md) | `admin_api_key` | Memory store for agent persistence |
-| [`anthropic_agent`](resources/agent_apikey.md) | `api_key` | Agent managed with a workspace API key |
-| [`anthropic_wif_agent`](resources/agent.md) | WIF | Agent managed via TFC OIDC federation |
-| [`anthropic_wif_environment`](resources/environment.md) | WIF | Execution environment for agents |
-| [`anthropic_wif_vault`](resources/vault.md) | WIF | Vault for storing credentials |
-| [`anthropic_wif_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
+| [`anthropic_agent`](resources/agent.md) | `api_key` | Agent managed with a workspace API key |
+| [`anthropic_wif_agent`](resources/wif_agent.md) | WIF | Agent managed via TFC OIDC federation |
+| [`anthropic_wif_environment`](resources/wif_environment.md) | WIF | Execution environment for agents |
+| [`anthropic_wif_vault`](resources/wif_vault.md) | WIF | Vault for storing credentials |
+| [`anthropic_wif_vault_credential`](resources/wif_vault_credential.md) | WIF | Credential stored in a vault |
 
 ## Guides
 
