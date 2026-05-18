@@ -13,10 +13,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type WIFAgentModel struct {
-	WorkspaceId    types.String `tfsdk:"workspace_id"`
+	WorkspaceId types.String `tfsdk:"workspace_id"`
 	agentCoreModel
 }
 
@@ -39,12 +40,12 @@ func (r *WIFAgentResource) Metadata(_ context.Context, req resource.MetadataRequ
 func (r *WIFAgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attrs := agentCoreSchemaAttrs()
 	attrs["workspace_id"] = schema.StringAttribute{
-		Required:      true,
+		Optional:      true,
 		PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-		Description:   "ID of the workspace this agent belongs to.",
+		Description:   "ID of the workspace this agent belongs to. Required when using WIF authentication. Not needed when using api_key.",
 	}
 	resp.Schema = schema.Schema{
-		Description: "Manages an Anthropic agent.",
+		Description: "Manages an Anthropic agent. Supports WIF (workspace_id required) and workspace API key authentication. WIF takes precedence when both are configured.",
 		Attributes:  attrs,
 	}
 }
@@ -78,17 +79,47 @@ func (r *WIFAgentResource) Configure(_ context.Context, req resource.ConfigureRe
 	r.data = data
 }
 
-func (r *WIFAgentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
-	if r.data == nil || r.data.wif == nil {
-		if r.data != nil && r.data.wifErr != nil {
-			diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
-		} else {
-			diags.AddError("Missing WIF configuration",
-				"Set federation_rule_id, organization_id, service_account_id in the provider block (or via ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID) and ensure TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC is injected.")
-		}
-		return false
+// resolveCredentials returns the credentials to use for the agent API call.
+// WIF takes precedence when workspace_id is set and WIF is fully configured.
+// Falls back to the workspace API key when WIF is not available.
+func (r *WIFAgentResource) resolveCredentials(ctx context.Context, workspaceID string, diags interface{ AddError(string, string) }) auth.Credentials {
+	if r.data == nil {
+		diags.AddError("Provider not configured", "No provider data available.")
+		return nil
 	}
-	return true
+
+	wifReady := r.data.wif != nil && workspaceID != ""
+
+	if wifReady {
+		if r.data.wif != nil && r.data.wifErr == nil {
+			tflog.Debug(ctx, "anthropic_agent: using WIF authentication", map[string]any{"workspace_id": workspaceID})
+			return auth.WIFBearer{Config: r.data.wif, WorkspaceID: workspaceID}
+		}
+	}
+
+	if r.data.apiKey != "" {
+		if wifReady {
+			tflog.Warn(ctx, "anthropic_agent: WIF config incomplete, falling back to api_key", map[string]any{"workspace_id": workspaceID})
+		} else {
+			tflog.Debug(ctx, "anthropic_agent: using workspace API key authentication")
+		}
+		return auth.WorkspaceAPIKey{Key: r.data.apiKey}
+	}
+
+	// Neither auth method is available — report a clear error.
+	if workspaceID != "" && r.data.wifErr != nil {
+		diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
+	} else if workspaceID != "" {
+		diags.AddError("Missing credentials",
+			"workspace_id is set but WIF is not configured and no api_key is available. "+
+				"Set federation_rule_id, organization_id, service_account_id (or ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID) "+
+				"or provide api_key (or ANTHROPIC_API_KEY).")
+	} else {
+		diags.AddError("Missing credentials",
+			"No authentication method is configured for anthropic_agent. "+
+				"Provide api_key (or ANTHROPIC_API_KEY), or set workspace_id together with WIF credentials.")
+	}
+	return nil
 }
 
 func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -97,7 +128,9 @@ func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireWIF(&resp.Diagnostics) {
+
+	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -106,8 +139,7 @@ func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
 		return
 	}
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Create(ctx, body)
+	agent, err := client.NewAgentClient(creds).Create(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
@@ -122,12 +154,13 @@ func (r *WIFAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireWIF(&resp.Diagnostics) {
+
+	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Read(ctx, data.Id.ValueString())
+	agent, err := client.NewAgentClient(creds).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent: %s", err))
 		return
@@ -151,7 +184,9 @@ func (r *WIFAgentResource) Update(ctx context.Context, req resource.UpdateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireWIF(&resp.Diagnostics) {
+
+	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -162,8 +197,7 @@ func (r *WIFAgentResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 	body["version"] = state.Version.ValueInt64()
 
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Update(ctx, data.Id.ValueString(), body)
+	agent, err := client.NewAgentClient(creds).Update(ctx, data.Id.ValueString(), body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent: %s", err))
 		return
@@ -178,22 +212,37 @@ func (r *WIFAgentResource) Delete(ctx context.Context, req resource.DeleteReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireWIF(&resp.Diagnostics) {
+
+	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
+	if err := client.NewAgentClient(creds).Delete(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent: %s", err))
 	}
 }
 
+// ImportState supports two formats:
+//   - workspace_id/agent_id  (WIF path)
+//   - agent_id               (API key path — workspace_id left null)
 func (r *WIFAgentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/agent_id")
-		return
+	switch len(parts) {
+	case 2:
+		if parts[0] == "" || parts[1] == "" {
+			resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/agent_id or agent_id")
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	case 1:
+		if parts[0] == "" {
+			resp.Diagnostics.AddError("Invalid import ID", "agent_id must not be empty")
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[0])...)
+	default:
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/agent_id or agent_id")
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }
