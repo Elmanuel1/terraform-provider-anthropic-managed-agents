@@ -139,6 +139,44 @@ func buildCredentialBody(data WIFVaultCredentialModel) (map[string]any, error) {
 	return body, nil
 }
 
+// buildCredentialUpdateBody builds the request body for Update, omitting immutable
+// auth fields (type, mcp_server_url, token_endpoint, client_id, etc.) that the API
+// rejects if re-sent. Only mutable fields — display_name, metadata, and rotatable
+// secrets (token / access_token) — are included.
+func buildCredentialUpdateBody(data WIFVaultCredentialModel) (map[string]any, error) {
+	authObj := map[string]any{}
+
+	switch data.AuthType.ValueString() {
+	case "static_bearer":
+		if !data.Token.IsNull() && !data.Token.IsUnknown() {
+			authObj["token"] = data.Token.ValueString()
+		}
+	case "mcp_oauth":
+		if !data.AccessToken.IsNull() && !data.AccessToken.IsUnknown() {
+			authObj["access_token"] = data.AccessToken.ValueString()
+		}
+		if !data.ExpiresAt.IsNull() && !data.ExpiresAt.IsUnknown() {
+			authObj["expires_at"] = data.ExpiresAt.ValueString()
+		}
+	default:
+		return nil, fmt.Errorf("unsupported auth_type %q: must be static_bearer or mcp_oauth", data.AuthType.ValueString())
+	}
+
+	body := map[string]any{}
+	if len(authObj) > 0 {
+		body["auth"] = authObj
+	}
+	if !data.DisplayName.IsNull() && !data.DisplayName.IsUnknown() {
+		body["display_name"] = data.DisplayName.ValueString()
+	}
+	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() {
+		meta := make(map[string]string)
+		data.Metadata.ElementsAs(context.Background(), &meta, false)
+		body["metadata"] = meta
+	}
+	return body, nil
+}
+
 func NewWIFVaultCredentialResource() resource.Resource {
 	return &WIFVaultCredentialResource{}
 }
@@ -371,7 +409,7 @@ func (r *WIFVaultCredentialResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	body, err := buildCredentialBody(data)
+	body, err := buildCredentialUpdateBody(data)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid credential configuration", err.Error())
 		return
