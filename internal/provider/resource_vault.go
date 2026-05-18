@@ -113,8 +113,12 @@ func (r *VaultResource) Configure(_ context.Context, req resource.ConfigureReque
 
 func (r *VaultResource) requireWIF(diags interface{ AddError(string, string) }) bool {
 	if r.data == nil || r.data.wif == nil {
-		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for vault resources.")
+		if r.data != nil && r.data.wifErr != nil {
+			diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
+		} else {
+			diags.AddError("Missing WIF configuration",
+				"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for vault resources.")
+		}
 		return false
 	}
 	return true

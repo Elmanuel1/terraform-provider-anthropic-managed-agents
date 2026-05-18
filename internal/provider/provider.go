@@ -21,6 +21,7 @@ type wifProvider struct{}
 type providerData struct {
 	apiKey string
 	wif    *auth.WIFConfig
+	wifErr error // non-nil when WIF vars are partially set; surfaced at resource operation time
 }
 
 func (p *wifProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -43,16 +44,13 @@ func (p *wifProvider) Configure(ctx context.Context, req provider.ConfigureReque
 		return
 	}
 
-	// WIF is optional at configure time — required only when agent/environment resources are used.
-	wifCfg, err := auth.ReadWIFConfig()
-	if err != nil {
-		resp.Diagnostics.AddError("WIF configuration error", err.Error())
-		return
-	}
+	// WIF is optional at configure time — validated only when a WIF resource is actually used.
+	wifCfg, wifErr := auth.ReadWIFConfig()
 
 	data := &providerData{
 		apiKey: apiKey,
 		wif:    wifCfg,
+		wifErr: wifErr,
 	}
 	resp.DataSourceData = data
 	resp.ResourceData = data
