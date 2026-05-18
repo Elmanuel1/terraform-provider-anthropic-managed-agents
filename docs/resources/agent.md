@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_wif_agent Resource - anthropic"
+page_title: "anthropic: anthropic_wif_agent"
 subcategory: ""
 description: |-
   Manages an Anthropic agent.
 ---
 
-# anthropic_wif_agent (Resource)
+# Resource: anthropic_wif_agent
 
 Manages an Anthropic agent. Agents are workspace-scoped and authenticate via WIF bearer token.
 
@@ -69,6 +69,8 @@ resource "anthropic_wif_agent" "coordinator" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `name` - (Required) Agent name.
 * `model` - (Required) Model ID, e.g. `claude-opus-4-7` or `claude-sonnet-4-6`.
@@ -82,6 +84,8 @@ resource "anthropic_wif_agent" "coordinator" {
 * `metadata` - (Optional) Map of arbitrary string key-value pairs.
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Agent ID (`agt_...`).
 * `version` - Optimistic-lock version, incremented on each update.

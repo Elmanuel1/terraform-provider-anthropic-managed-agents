@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_workspace Resource - anthropic"
+page_title: "anthropic: anthropic_workspace"
 subcategory: ""
 description: |-
   Manages an Anthropic workspace.
 ---
 
-# anthropic_workspace (Resource)
+# Resource: anthropic_workspace
 
 Manages an Anthropic workspace. Workspaces are the top-level organisational unit on the Anthropic platform. Agents, environments, vaults, and other resources are scoped to a workspace.
 
@@ -23,9 +23,13 @@ resource "anthropic_workspace" "example" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `name` - (Required) Workspace name as it appears in the Anthropic Console.
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Workspace ID (`wrks_...`).
 * `created_at` - ISO 8601 creation timestamp.

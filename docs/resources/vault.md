@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_wif_vault Resource - anthropic"
+page_title: "anthropic: anthropic_wif_vault"
 subcategory: ""
 description: |-
   Manages an Anthropic vault for storing MCP server credentials.
 ---
 
-# anthropic_wif_vault (Resource)
+# Resource: anthropic_wif_vault
 
 Manages an Anthropic vault. Vaults are workspace-scoped containers for storing MCP server credentials that agents can use during sessions.
 
@@ -29,12 +29,16 @@ resource "anthropic_wif_vault" "example" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `display_name` - (Required) Human-readable vault name.
 * `metadata` - (Optional) Map of arbitrary string key-value pairs.
 * `force_delete` - (Optional) When `true`, permanently deletes on destroy. Default `false` (archives).
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Vault ID (`vlt_...`).
 * `created_at` - ISO 8601 creation timestamp.

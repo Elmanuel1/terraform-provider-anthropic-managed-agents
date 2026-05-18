@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_wif_vault_credential Resource - anthropic"
+page_title: "anthropic: anthropic_wif_vault_credential"
 subcategory: ""
 description: |-
   Manages a credential stored in an Anthropic vault.
 ---
 
-# anthropic_wif_vault_credential (Resource)
+# Resource: anthropic_wif_vault_credential
 
 Manages a credential inside an Anthropic vault. Credentials provide MCP server authentication for agents. Both static bearer tokens and OAuth flows are supported.
 
@@ -54,6 +54,8 @@ resource "anthropic_wif_vault_credential" "example" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `vault_id` - (Required, Forces new resource) Vault ID.
 * `auth_type` - (Required, Forces new resource) `static_bearer` or `mcp_oauth`.
@@ -73,6 +75,8 @@ resource "anthropic_wif_vault_credential" "example" {
 * `force_delete` - (Optional) When `true`, permanently deletes on destroy. Default `false` (archives).
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Credential ID (`vcrd_...`).
 * `created_at` - ISO 8601 creation timestamp.

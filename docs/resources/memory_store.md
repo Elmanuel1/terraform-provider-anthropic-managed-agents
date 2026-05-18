@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_memory_store Resource - anthropic"
+page_title: "anthropic: anthropic_memory_store"
 subcategory: ""
 description: |-
   Manages an Anthropic memory store for agent persistence.
 ---
 
-# anthropic_memory_store (Resource)
+# Resource: anthropic_memory_store
 
 Manages an Anthropic memory store. Memory stores provide persistent storage for agents across sessions, enabling long-term context and knowledge retention.
 
@@ -29,12 +29,16 @@ resource "anthropic_memory_store" "example" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `name` - (Required) Memory store name.
 * `description` - (Optional) Human-readable description.
 * `metadata` - (Optional) Map of arbitrary string key-value pairs.
 * `force_delete` - (Optional) When `true`, permanently deletes on destroy. Default `false` (archives).
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Memory store ID.
 * `created_at` - ISO 8601 creation timestamp.

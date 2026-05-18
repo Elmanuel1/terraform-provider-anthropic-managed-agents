@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic_wif_environment Resource - anthropic"
+page_title: "anthropic: anthropic_wif_environment"
 subcategory: ""
 description: |-
   Manages an Anthropic cloud environment for agent sessions.
 ---
 
-# anthropic_wif_environment (Resource)
+# Resource: anthropic_wif_environment
 
 Manages an Anthropic cloud execution environment. Environments define the runtime configuration for agent sessions: networking policy, pre-installed packages, and MCP server access.
 
@@ -47,6 +47,8 @@ resource "anthropic_wif_environment" "example" {
 
 ## Argument Reference
 
+This resource supports the following arguments:
+
 * `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `name` - (Required) Environment name.
 * `description` - (Optional) Human-readable description.
@@ -59,6 +61,8 @@ resource "anthropic_wif_environment" "example" {
 * `force_delete` - (Optional) When `true`, permanently deletes on destroy. Default `false` (archives).
 
 ## Attribute Reference
+
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Environment ID (`env_...`).
 * `created_at` - ISO 8601 creation timestamp.
