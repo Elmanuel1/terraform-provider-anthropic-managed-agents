@@ -139,12 +139,15 @@ func buildCredentialBody(data WIFVaultCredentialModel) (map[string]any, error) {
 	return body, nil
 }
 
-// buildCredentialUpdateBody builds the request body for Update, omitting immutable
-// auth fields (type, mcp_server_url, token_endpoint, client_id, etc.) that the API
-// rejects if re-sent. Only mutable fields — display_name, metadata, and rotatable
-// secrets (token / access_token) — are included.
+// buildCredentialUpdateBody builds the request body for Update. It includes auth.type
+// (required by the API) but omits immutable fields (mcp_server_url, token_endpoint,
+// client_id, etc.) that the API rejects on update. Only mutable fields — display_name,
+// metadata, and rotatable secrets (token / access_token) — are sent alongside type.
 func buildCredentialUpdateBody(data WIFVaultCredentialModel) (map[string]any, error) {
-	authObj := map[string]any{}
+	// type is required by the API but mcp_server_url is rejected on update
+	authObj := map[string]any{
+		"type": data.AuthType.ValueString(),
+	}
 
 	switch data.AuthType.ValueString() {
 	case "static_bearer":
@@ -472,3 +475,4 @@ func (r *WIFVaultCredentialResource) ImportState(ctx context.Context, req resour
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/vault_id/credential_id or vault_id/credential_id")
 	}
 }
+
