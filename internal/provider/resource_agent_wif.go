@@ -63,18 +63,16 @@ func (r *WIFAgentResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 	}
 
 	// Validate that at least one auth method will be available at apply time.
-	if r.data != nil {
-		wifConfigured := r.data.wif != nil && !plan.WorkspaceId.IsNull() && !plan.WorkspaceId.IsUnknown()
-		apiKeyConfigured := r.data.workspaceAPIKey != ""
-		if !wifConfigured && !apiKeyConfigured {
-			resp.Diagnostics.AddError(
-				"Missing credentials",
-				"No authentication method is configured for anthropic_agent. "+
-					"Set workspace_id together with WIF credentials (federation_rule_id, organization_id, service_account_id), "+
-					"or set workspace_api_key in the provider block.",
-			)
-			return
-		}
+	wifConfigured := r.data != nil && r.data.wif != nil && !plan.WorkspaceId.IsNull() && !plan.WorkspaceId.IsUnknown()
+	apiKeyConfigured := r.data != nil && r.data.workspaceAPIKey != ""
+	if r.data != nil && !wifConfigured && !apiKeyConfigured {
+		resp.Diagnostics.AddError(
+			"Missing credentials",
+			"No authentication method is configured for anthropic_agent. "+
+				"Set workspace_id together with WIF credentials (federation_rule_id, organization_id, service_account_id), "+
+				"or set workspace_api_key in the provider block.",
+		)
+		return
 	}
 
 	// Skip version/updated_at unknowns on create (no prior state).
