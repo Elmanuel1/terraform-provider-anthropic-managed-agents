@@ -1,7 +1,7 @@
 ---
 page_title: "anthropic Provider - Elmanuel1/anthropic-managed-agents"
 description: |-
-  Terraform provider for managing Anthropic workspaces, agents, environments, vaults, vault credentials, and memory stores using Workload Identity Federation (WIF) via TFC OIDC.
+  Terraform provider for managing Anthropic platform resources. Workspace-scoped resources (agents, environments, vaults) authenticate via WIF. Organization-level resources (workspaces, memory stores) use the Admin API key.
 ---
 
 # anthropic Provider
