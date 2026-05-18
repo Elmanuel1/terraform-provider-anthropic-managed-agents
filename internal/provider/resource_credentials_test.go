@@ -6,7 +6,17 @@ import (
 	"testing"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
+
+// diagCollector collects AddError calls so tests can inspect them.
+type diagCollector struct {
+	diags diag.Diagnostics
+}
+
+func (d *diagCollector) AddError(summary, detail string) {
+	d.diags.AddError(summary, detail)
+}
 
 // resolveWorkspaceCredentials
 

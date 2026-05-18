@@ -34,36 +34,50 @@ func NewWorkspaceClient(creds auth.AdminAPIKey) *WorkspaceClient {
 }
 
 // ResolveByName resolves a workspace name to its ID via the Admin API.
-// The workspace list is fetched once per client instance and cached.
+// The full workspace list is fetched (with pagination) once per client instance and cached.
 // Note: sync.Once captures the context from the first caller. If that context
 // is cancelled during the fetch, fetchErr is set permanently and all subsequent
 // calls return it. Terraform provider contexts are long-lived so this is safe in practice.
 func (c *WorkspaceClient) ResolveByName(ctx context.Context, name string) (string, error) {
 	c.once.Do(func() {
-		raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, workspacesPath, nil)
-		if err != nil {
-			c.fetchErr = fmt.Errorf("listing workspaces: %w", err)
-			return
-		}
-		if status != http.StatusOK {
-			c.fetchErr = fmt.Errorf("listing workspaces returned HTTP %d: %s", status, raw)
-			return
-		}
+		c.byName = make(map[string]string)
+		afterID := ""
+		for {
+			path := workspacesPath
+			if afterID != "" {
+				path += "?after_id=" + url.QueryEscape(afterID)
+			}
+			raw, status, err := doWithCreds(ctx, c.httpClient, c.creds, http.MethodGet, path, nil)
+			if err != nil {
+				c.fetchErr = fmt.Errorf("listing workspaces: %w", err)
+				return
+			}
+			if status != http.StatusOK {
+				c.fetchErr = fmt.Errorf("listing workspaces returned HTTP %d: %s", status, raw)
+				return
+			}
 
-		var result struct {
-			Data []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &result); err != nil {
-			c.fetchErr = fmt.Errorf("parsing workspaces response: %w", err)
-			return
-		}
+			var result struct {
+				Data []struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"data"`
+				HasMore bool   `json:"has_more"`
+				LastID  string `json:"last_id"`
+			}
+			if err := json.Unmarshal(raw, &result); err != nil {
+				c.fetchErr = fmt.Errorf("parsing workspaces response: %w", err)
+				return
+			}
 
-		c.byName = make(map[string]string, len(result.Data))
-		for _, w := range result.Data {
-			c.byName[w.Name] = w.ID
+			for _, w := range result.Data {
+				c.byName[w.Name] = w.ID
+			}
+
+			if !result.HasMore || result.LastID == "" {
+				break
+			}
+			afterID = result.LastID
 		}
 	})
 

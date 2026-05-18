@@ -2,101 +2,12 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
-
-// diagCollector collects AddError calls so tests can inspect them.
-type diagCollector struct {
-	diags diag.Diagnostics
-}
-
-func (d *diagCollector) AddError(summary, detail string) {
-	d.diags.AddError(summary, detail)
-}
-
-func TestResolveCredentials_WIF(t *testing.T) {
-	r := &WIFAgentResource{data: &providerData{
-		wif: &auth.WIFConfig{},
-	}}
-	d := &diagCollector{}
-	creds := r.resolveCredentials(context.Background(), "wrks_123", d)
-	if d.diags.HasError() {
-		t.Fatalf("unexpected error: %s", d.diags[0].Detail())
-	}
-	if _, ok := creds.(auth.WIFBearer); !ok {
-		t.Errorf("expected WIFBearer, got %T", creds)
-	}
-}
-
-func TestResolveCredentials_APIKey(t *testing.T) {
-	r := &WIFAgentResource{data: &providerData{
-		workspaceAPIKey: "sk-ant-api03-test",
-	}}
-	d := &diagCollector{}
-	creds := r.resolveCredentials(context.Background(), "", d)
-	if d.diags.HasError() {
-		t.Fatalf("unexpected error: %s", d.diags[0].Detail())
-	}
-	if _, ok := creds.(auth.WorkspaceAPIKey); !ok {
-		t.Errorf("expected WorkspaceAPIKey, got %T", creds)
-	}
-}
-
-func TestResolveCredentials_WIFPrecedenceOverAPIKey(t *testing.T) {
-	r := &WIFAgentResource{data: &providerData{
-		wif:             &auth.WIFConfig{},
-		workspaceAPIKey: "sk-ant-api03-test",
-	}}
-	d := &diagCollector{}
-	creds := r.resolveCredentials(context.Background(), "wrks_123", d)
-	if d.diags.HasError() {
-		t.Fatalf("unexpected error: %s", d.diags[0].Detail())
-	}
-	if _, ok := creds.(auth.WIFBearer); !ok {
-		t.Errorf("expected WIFBearer (WIF takes precedence), got %T", creds)
-	}
-}
-
-func TestResolveCredentials_NeitherConfigured(t *testing.T) {
-	r := &WIFAgentResource{data: &providerData{}}
-	d := &diagCollector{}
-	creds := r.resolveCredentials(context.Background(), "", d)
-	if !d.diags.HasError() {
-		t.Fatal("expected error when no credentials configured")
-	}
-	if creds != nil {
-		t.Error("expected nil credentials on error")
-	}
-}
-
-func TestResolveCredentials_WIFErrorSurfaced(t *testing.T) {
-	r := &WIFAgentResource{data: &providerData{
-		wifErr: fmt.Errorf("incomplete WIF configuration, missing: federation_rule_id"),
-	}}
-	d := &diagCollector{}
-	r.resolveCredentials(context.Background(), "wrks_123", d)
-	if !d.diags.HasError() {
-		t.Fatal("expected error when workspace_id set and WIF has error")
-	}
-}
-
-func TestResolveCredentials_NilProviderData(t *testing.T) {
-	r := &WIFAgentResource{}
-	d := &diagCollector{}
-	creds := r.resolveCredentials(context.Background(), "", d)
-	if !d.diags.HasError() {
-		t.Fatal("expected error when provider data is nil")
-	}
-	if creds != nil {
-		t.Error("expected nil credentials")
-	}
-}
 
 func TestWorkspaceAPIKey_Authenticate(t *testing.T) {
 	key := auth.WorkspaceAPIKey{Key: "sk-ant-api03-test"}

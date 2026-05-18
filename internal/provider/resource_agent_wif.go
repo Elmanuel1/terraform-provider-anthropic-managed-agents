@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -13,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 type WIFAgentModel struct {
@@ -51,7 +49,6 @@ func (r *WIFAgentResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 }
 
 func (r *WIFAgentResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// Destroy plan — nothing to validate.
 	if req.Plan.Raw.IsNull() {
 		return
 	}
@@ -62,18 +59,12 @@ func (r *WIFAgentResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 		return
 	}
 
-	// Validate that at least one auth method will be available at apply time.
-	// workspace_id may be unknown at plan time (e.g. referencing a not-yet-created workspace),
-	// so WIF is considered configured based on the WIF credentials alone, not workspace_id.
-	wifConfigured := r.data != nil && r.data.wif != nil
-	apiKeyConfigured := r.data != nil && r.data.workspaceAPIKey != ""
-	if r.data != nil && !wifConfigured && !apiKeyConfigured {
-		resp.Diagnostics.AddError(
-			"Missing credentials",
-			"No authentication method is configured for anthropic_agent. "+
-				"Set workspace_id together with WIF credentials (federation_rule_id, organization_id, service_account_id), "+
-				"or set workspace_api_key in the provider block.",
-		)
+	workspaceID := ""
+	if !plan.WorkspaceId.IsNull() && !plan.WorkspaceId.IsUnknown() {
+		workspaceID = plan.WorkspaceId.ValueString()
+	}
+	validateWorkspaceCredentials(r.data, "anthropic_agent", workspaceID, plan.WorkspaceId.IsUnknown(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -106,42 +97,6 @@ func (r *WIFAgentResource) Configure(_ context.Context, req resource.ConfigureRe
 	r.data = data
 }
 
-// resolveCredentials returns the credentials for the agent API call.
-// WIF is used when workspace_id is set and WIF is fully configured.
-// workspace_api_key is used otherwise.
-// When both are configured, WIF takes precedence.
-func (r *WIFAgentResource) resolveCredentials(ctx context.Context, workspaceID string, diags interface{ AddError(string, string) }) auth.Credentials {
-	if r.data == nil {
-		diags.AddError("Provider not configured", "No provider data available.")
-		return nil
-	}
-
-	if r.data.wif != nil && workspaceID != "" {
-		tflog.Debug(ctx, "anthropic_agent: using WIF authentication", map[string]any{"workspace_id": workspaceID})
-		return auth.WIFBearer{Config: r.data.wif, WorkspaceID: workspaceID}
-	}
-
-	if r.data.workspaceAPIKey != "" {
-		tflog.Debug(ctx, "anthropic_agent: using workspace API key authentication")
-		return auth.WorkspaceAPIKey{Key: r.data.workspaceAPIKey}
-	}
-
-	if workspaceID != "" && r.data.wifErr != nil {
-		diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
-	} else if workspaceID != "" {
-		diags.AddError("Missing credentials",
-			"workspace_id is set but WIF is not fully configured and workspace_api_key is not set. "+
-				"Set federation_rule_id, organization_id, service_account_id in the provider block, "+
-				"or set workspace_api_key.")
-	} else {
-		diags.AddError("Missing credentials",
-			"No authentication method is configured for anthropic_agent. "+
-				"Set workspace_api_key in the provider block, "+
-				"or set workspace_id together with WIF credentials (federation_rule_id, organization_id, service_account_id).")
-	}
-	return nil
-}
-
 func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data WIFAgentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -149,7 +104,7 @@ func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_agent", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -175,7 +130,7 @@ func (r *WIFAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_agent", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -205,7 +160,7 @@ func (r *WIFAgentResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_agent", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -233,7 +188,7 @@ func (r *WIFAgentResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	creds := r.resolveCredentials(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_agent", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}

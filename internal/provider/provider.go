@@ -106,7 +106,14 @@ func (p *anthropicProvider) Configure(ctx context.Context, req provider.Configur
 
 
 func (p *anthropicProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewWorkspaceDataSource,
+		NewAgentDataSource,
+		NewEnvironmentDataSource,
+		NewVaultDataSource,
+		NewVaultCredentialDataSource,
+		NewMemoryStoreDataSource,
+	}
 }
 
 func (p *anthropicProvider) Resources(_ context.Context) []func() resource.Resource {
