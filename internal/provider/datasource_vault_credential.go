@@ -139,7 +139,7 @@ func (d *VaultCredentialDataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 
-	creds := resolveWorkspaceCredentials(ctx, d.data, "anthropic_vault_credential", data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, d.data, "data.anthropic_vault_credential", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
