@@ -5,9 +5,12 @@ import (
 	"flag"
 	"log"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/provider"
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
+
+// providerAddr is set at build time via -ldflags "-X main.providerAddr=..."
+var providerAddr = "registry.terraform.io/Elmanuel1/anthropic"
 
 func main() {
 	var debug bool
@@ -15,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
-		Address: "registry.terraform.io/Elmanuel1/anthropic-managed-agents",
+		Address: providerAddr,
 		Debug:   debug,
 	})
 	if err != nil {

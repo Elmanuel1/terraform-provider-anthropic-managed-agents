@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 )
 
 var defaultHTTPClient = &http.Client{Timeout: 30 * time.Second}

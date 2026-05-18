@@ -28,6 +28,12 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
 
+      - name: Derive provider address
+        id: provider_addr
+        run: |
+          ADDR="registry.terraform.io/${GITHUB_REPOSITORY/terraform-provider-/}"
+          echo "value=$ADDR" >> "$GITHUB_OUTPUT"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -35,3 +41,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          PROVIDER_ADDR: ${{ steps.provider_addr.outputs.value }}
