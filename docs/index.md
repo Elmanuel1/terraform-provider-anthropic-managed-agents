@@ -1,28 +1,24 @@
 ---
-page_title: "anthropic Provider - Elmanuel1/anthropic-managed-agents"
+page_title: "Provider: anthropic"
 description: |-
-  Terraform provider for managing Anthropic platform resources. Supports Admin API key, Workload Identity Federation (WIF), and workspace API key authentication.
+  Use the Anthropic provider to manage Anthropic platform resources. The provider supports Admin API key, Workload Identity Federation (WIF), and workspace API key authentication.
 ---
 
-# anthropic Provider
+# Anthropic Provider
 
-Manage Anthropic platform resources using Terraform.
+Use the Anthropic provider to manage Anthropic platform resources including workspaces, agents, environments, vaults, and memory stores.
 
-## Authentication Modes
+## Authentication
 
-This provider supports three credential types. Each resource uses exactly one:
+The provider supports three authentication modes. Each resource uses exactly one:
 
-| Auth mode | When to use | Credentials needed |
-|---|---|---|
-| **Admin API key** | Managing workspaces and memory stores | `admin_api_key` |
-| **WIF** | Managing agents, environments, vaults, and vault credentials from Terraform Cloud | `federation_rule_id` + `organization_id` + `service_account_id` + TFC-injected OIDC JWT |
-| **Workspace API key** | Managing agents outside of Terraform Cloud (no WIF) | `workspace_api_key` |
+- **Admin API key** — used by `anthropic_workspace` and `anthropic_memory_store`.
+- **WIF (Workload Identity Federation)** — used by `anthropic_environment`, `anthropic_vault`, `anthropic_vault_credential`, and optionally `anthropic_agent`. Requires Terraform Cloud with OIDC token injection.
+- **Workspace API key** — used by `anthropic_agent` when WIF is not available. When both WIF and workspace API key are configured, WIF takes precedence.
 
-For `anthropic_agent`, WIF and workspace API key are both supported. **WIF takes precedence when both are configured.**
+## Example Usage
 
-All provider attributes are optional — each resource validates only the credentials it needs at apply time.
-
-## Provider Configuration
+### Admin API key and WIF
 
 ```terraform
 terraform {
@@ -34,38 +30,6 @@ terraform {
   }
 }
 
-provider "anthropic" {
-  # Admin API key — required for anthropic_workspace and anthropic_memory_store
-  admin_api_key = var.anthropic_admin_api_key
-
-  # WIF — required for anthropic_agent (WIF mode), anthropic_environment, anthropic_vault, anthropic_vault_credential
-  # The OIDC JWT is injected automatically by Terraform Cloud; no provider attribute needed for it
-  federation_rule_id = var.anthropic_federation_rule_id
-  organization_id    = var.anthropic_organization_id
-  service_account_id = var.anthropic_service_account_id
-
-  # Workspace API key — alternative to WIF for anthropic_agent only
-  workspace_api_key = var.anthropic_workspace_api_key
-}
-```
-
-## Schema
-
-| Attribute | Type | Auth mode |
-|---|---|---|
-| `admin_api_key` | String, sensitive | Admin API key |
-| `workspace_api_key` | String, sensitive | Workspace API key |
-| `federation_rule_id` | String | WIF |
-| `organization_id` | String | WIF |
-| `service_account_id` | String | WIF |
-
-The WIF OIDC JWT (`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` or `TFC_WORKLOAD_IDENTITY_TOKEN`) is read from the environment only — Terraform Cloud injects it automatically per run.
-
-## Example Usage
-
-### Admin API key + WIF (full setup)
-
-```terraform
 provider "anthropic" {
   admin_api_key      = var.anthropic_admin_api_key
   federation_rule_id = var.anthropic_federation_rule_id
@@ -85,7 +49,7 @@ resource "anthropic_agent" "example" {
 }
 ```
 
-### Workspace API key only (no TFC OIDC)
+### Workspace API key
 
 ```terraform
 provider "anthropic" {
@@ -99,20 +63,21 @@ resource "anthropic_agent" "example" {
 }
 ```
 
-## Resources
+## Schema
 
-| Resource | Auth mode | Description |
-|---|---|---|
-| [`anthropic_workspace`](resources/workspace.md) | Admin API key | Anthropic workspace |
-| [`anthropic_memory_store`](resources/memory_store.md) | Admin API key | Memory store for agent persistence |
-| [`anthropic_agent`](resources/agent.md) | WIF or workspace API key | Anthropic agent |
-| [`anthropic_environment`](resources/environment.md) | WIF | Execution environment for agents |
-| [`anthropic_vault`](resources/vault.md) | WIF | Vault for storing credentials |
-| [`anthropic_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
+### Optional
 
-## WIF Console Setup
+- `admin_api_key` (String, Sensitive) Admin API key (`sk-ant-admin-...`). Required for `anthropic_workspace` and `anthropic_memory_store`.
+- `workspace_api_key` (String, Sensitive) Workspace API key (`sk-ant-api03-...`). Used for `anthropic_agent` authentication when WIF is not configured. When both are provided, WIF takes precedence.
+- `federation_rule_id` (String) Federation rule ID (`fdrl_...`). Required for WIF-authenticated resources.
+- `organization_id` (String) Anthropic organization UUID. Required for WIF-authenticated resources.
+- `service_account_id` (String) Service account ID (`svac_...`). Required for WIF-authenticated resources.
 
-Required when using WIF authentication:
+The WIF OIDC JWT is read from `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` (or `TFC_WORKLOAD_IDENTITY_TOKEN` as fallback). Terraform Cloud injects it automatically — no provider attribute is needed.
+
+## WIF Setup
+
+To use WIF authentication, configure the following in the Anthropic Console:
 
 1. **Workload Identity Issuer**: Console → Settings → Workload Identity → Create issuer
    - Issuer URL: `https://app.terraform.io`
@@ -134,4 +99,4 @@ Required when using WIF authentication:
    claims.sub.matches("^organization:<tfc-org>:project:<tfc-project>:workspace:<tfc-workspace>:run_phase:(plan|apply)$")
    ```
 
-See the [Authentication & Debugging guide](guides/authentication.md) for troubleshooting WIF token exchange failures.
+See the [Authentication & Debugging guide](guides/authentication.md) for troubleshooting token exchange failures.
