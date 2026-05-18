@@ -21,7 +21,6 @@ type anthropicProvider struct{}
 
 type providerConfig struct {
 	AdminAPIKey      types.String `tfsdk:"admin_api_key"`
-	APIKey           types.String `tfsdk:"api_key"`
 	FederationRuleID types.String `tfsdk:"federation_rule_id"`
 	OrganizationID   types.String `tfsdk:"organization_id"`
 	ServiceAccountID types.String `tfsdk:"service_account_id"`
@@ -29,7 +28,6 @@ type providerConfig struct {
 
 type providerData struct {
 	adminKey string
-	wsKey    string
 	wif      *auth.WIFConfig
 	wifErr   error
 }
@@ -48,11 +46,6 @@ func (p *anthropicProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 				Optional:    true,
 				Sensitive:   true,
 				Description: "Anthropic Admin API key (sk-ant-admin-...). Falls back to ANTHROPIC_ADMIN_API_KEY. Required for anthropic_workspace and anthropic_memory_store.",
-			},
-			"api_key": schema.StringAttribute{
-				Optional:    true,
-				Sensitive:   true,
-				Description: "Workspace API key (sk-ant-api-...). Falls back to ANTHROPIC_API_KEY. Required for anthropic_agent.",
 			},
 			"federation_rule_id": schema.StringAttribute{
 				Optional:    true,
@@ -78,7 +71,6 @@ func (p *anthropicProvider) Configure(ctx context.Context, req provider.Configur
 	}
 
 	adminKey := firstNonEmpty(cfg.AdminAPIKey.ValueString(), os.Getenv("ANTHROPIC_ADMIN_API_KEY"))
-	wsKey := firstNonEmpty(cfg.APIKey.ValueString(), os.Getenv("ANTHROPIC_API_KEY"))
 	ruleID := firstNonEmpty(cfg.FederationRuleID.ValueString(), os.Getenv("ANTHROPIC_FEDERATION_RULE_ID"))
 	orgID := firstNonEmpty(cfg.OrganizationID.ValueString(), os.Getenv("ANTHROPIC_ORGANIZATION_ID"))
 	svcID := firstNonEmpty(cfg.ServiceAccountID.ValueString(), os.Getenv("ANTHROPIC_SERVICE_ACCOUNT_ID"))
@@ -87,7 +79,6 @@ func (p *anthropicProvider) Configure(ctx context.Context, req provider.Configur
 
 	data := &providerData{
 		adminKey: adminKey,
-		wsKey:    wsKey,
 		wif:      wifCfg,
 		wifErr:   wifErr,
 	}
@@ -116,7 +107,6 @@ func (p *anthropicProvider) DataSources(_ context.Context) []func() datasource.D
 func (p *anthropicProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewWorkspaceResource,
-		NewAgentResource,
 		NewWIFAgentResource,
 		NewWIFEnvironmentResource,
 		NewWIFVaultResource,

@@ -2,28 +2,25 @@
 page_title: "anthropic: anthropic_agent"
 subcategory: ""
 description: |-
-  Manages an Anthropic agent using a workspace API key.
+  Manages an Anthropic agent.
 ---
 
 # Resource: anthropic_agent
 
-Manages an Anthropic agent. Authenticates with a workspace API key (`api_key` in the provider block or `ANTHROPIC_API_KEY`).
+Manages an Anthropic agent. Authenticates via WIF bearer token scoped to the `workspace_id`. Requires `federation_rule_id`, `organization_id`, and `service_account_id` in the provider block (or the corresponding environment variables).
 
-Use this resource when you have a static workspace API key. For Terraform Cloud workspaces using OIDC federation, use [`anthropic_wif_agent`](wif_agent.md) instead.
+For Terraform Cloud setup and debugging token exchange failures, see the [Authentication guide](../guides/authentication.md).
 
 ## Example Usage
 
-### Single workspace
+### Minimal agent
 
 ```terraform
-provider "anthropic" {
-  api_key = var.workspace_api_key
-}
-
 resource "anthropic_agent" "example" {
-  name   = "my-agent"
-  model  = "claude-sonnet-4-6"
-  system = "You are a helpful assistant."
+  workspace_id = anthropic_workspace.example.id
+  name         = "my-agent"
+  model        = "claude-sonnet-4-6"
+  system       = "You are a helpful assistant."
 }
 ```
 
@@ -31,11 +28,12 @@ resource "anthropic_agent" "example" {
 
 ```terraform
 resource "anthropic_agent" "example" {
-  name        = "support-agent"
-  model       = "claude-opus-4-7"
-  model_speed = "standard"
-  system      = "You are a customer support assistant."
-  description = "Handles tier-1 support queries."
+  workspace_id = anthropic_workspace.example.id
+  name         = "procurement-agent"
+  model        = "claude-opus-4-7"
+  model_speed  = "standard"
+  system       = "You are a procurement assistant."
+  description  = "Handles purchase order workflows."
 
   tools = jsonencode([
     { "type" = "agent_toolset_20260401" }
@@ -43,42 +41,54 @@ resource "anthropic_agent" "example" {
 
   mcp_servers = jsonencode([
     {
-      name = "helpdesk"
+      name = "erp-server"
       type = "url"
-      url  = "https://helpdesk.example.com/mcp"
+      url  = "https://erp.example.com/mcp"
     }
   ])
 
   metadata = {
-    team = "support"
+    team = "procurement"
     env  = "production"
   }
 }
 ```
 
-### Multiple workspaces
+### Agent with Anthropic skills
 
 ```terraform
-provider "anthropic" {
-  alias   = "workspace_a"
-  api_key = var.workspace_a_api_key
+resource "anthropic_agent" "example" {
+  workspace_id = anthropic_workspace.example.id
+  name         = "data-agent"
+  model        = "claude-sonnet-4-6"
+  system       = "You are a data analysis assistant."
+
+  skills = jsonencode([
+    { "type" = "anthropic", "skill_id" = "xlsx" },
+    { "type" = "anthropic", "skill_id" = "web_search" }
+  ])
+}
+```
+
+### Multi-agent coordinator
+
+```terraform
+resource "anthropic_agent" "worker" {
+  workspace_id = anthropic_workspace.example.id
+  name         = "worker"
+  model        = "claude-sonnet-4-6"
+  system       = "You are a worker agent."
 }
 
-provider "anthropic" {
-  alias   = "workspace_b"
-  api_key = var.workspace_b_api_key
-}
+resource "anthropic_agent" "coordinator" {
+  workspace_id = anthropic_workspace.example.id
+  name         = "coordinator"
+  model        = "claude-opus-4-7"
 
-resource "anthropic_agent" "agent_a" {
-  provider = anthropic.workspace_a
-  name     = "agent-a"
-  model    = "claude-sonnet-4-6"
-}
-
-resource "anthropic_agent" "agent_b" {
-  provider = anthropic.workspace_b
-  name     = "agent-b"
-  model    = "claude-sonnet-4-6"
+  multiagent = jsonencode({
+    type   = "coordinator"
+    agents = [anthropic_agent.worker.id]
+  })
 }
 ```
 
@@ -86,6 +96,7 @@ resource "anthropic_agent" "agent_b" {
 
 This resource supports the following arguments:
 
+* `workspace_id` - (Required, Forces new resource) Workspace ID.
 * `name` - (Required) Agent name.
 * `model` - (Required) Model ID, e.g. `claude-opus-4-7` or `claude-sonnet-4-6`.
 * `model_speed` - (Optional) Inference speed: `standard` (default) or `fast`.
@@ -109,8 +120,8 @@ In addition to all arguments above, the following attributes are exported:
 
 ## Import
 
-Import by agent ID:
+Import by `workspace_id/agent_id`:
 
 ```shell
-terraform import anthropic_agent.example agt_xxx
+terraform import anthropic_agent.example wrks_xxx/agt_yyy
 ```
