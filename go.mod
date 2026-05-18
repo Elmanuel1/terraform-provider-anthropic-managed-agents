@@ -1,4 +1,4 @@
-module github.com/Elmanuel1/terraform-provider-anthropic-wif
+module github.com/Elmanuel1/terraform-provider-anthropic-managed-agents
 
 go 1.25.0
 

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -122,7 +122,7 @@ var _ resource.ResourceWithImportState = &AgentResource{}
 var _ resource.ResourceWithModifyPlan = &AgentResource{}
 
 func (r *AgentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agent"
+	resp.TypeName = req.ProviderTypeName + "_wif_agent"
 }
 
 func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

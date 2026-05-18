@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -24,7 +24,7 @@ type providerData struct {
 }
 
 func (p *wifProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "anthropic-wif"
+	resp.TypeName = "anthropic"
 }
 
 func (p *wifProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {

@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/provider"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
@@ -15,7 +15,7 @@ func main() {
 	flag.Parse()
 
 	err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
-		Address: "registry.terraform.io/Elmanuel1/anthropic-wif",
+		Address: "registry.terraform.io/Elmanuel1/anthropic-managed-agents",
 		Debug:   debug,
 	})
 	if err != nil {

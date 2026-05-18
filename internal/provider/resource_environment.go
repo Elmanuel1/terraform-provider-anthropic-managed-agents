@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -103,7 +103,7 @@ var _ resource.Resource = &EnvironmentResource{}
 var _ resource.ResourceWithImportState = &EnvironmentResource{}
 
 func (r *EnvironmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_environment"
+	resp.TypeName = req.ProviderTypeName + "_wif_environment"
 }
 
 func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

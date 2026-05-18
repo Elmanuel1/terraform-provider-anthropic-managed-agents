@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
 )
 
 func TestDefaultHTTPClient_Timeout(t *testing.T) {

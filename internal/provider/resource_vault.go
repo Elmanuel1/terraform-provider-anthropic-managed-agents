@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -58,7 +58,7 @@ var _ resource.Resource = &VaultResource{}
 var _ resource.ResourceWithImportState = &VaultResource{}
 
 func (r *VaultResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_vault"
+	resp.TypeName = req.ProviderTypeName + "_wif_vault"
 }
 
 func (r *VaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -72,7 +72,7 @@ func (r *VaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"workspace_id": schema.StringAttribute{
 				Required:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Description:   "ID of the workspace this resource belongs to.",
+				Description:   "ID of the workspace this vault belongs to.",
 			},
 			"display_name": schema.StringAttribute{
 				Required: true,

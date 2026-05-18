@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/client"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 

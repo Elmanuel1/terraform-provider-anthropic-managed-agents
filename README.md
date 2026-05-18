@@ -1,40 +1,40 @@
-# terraform-provider-anthropic-wif
+# terraform-provider-anthropic-managed-agents
 
 Terraform provider for managing Anthropic platform resources using Workload Identity Federation (WIF) via Terraform Cloud OIDC.
 
-Registry: [registry.terraform.io/providers/Elmanuel1/anthropic-wif](https://registry.terraform.io/providers/Elmanuel1/anthropic-wif/latest)
+Registry: [registry.terraform.io/providers/Elmanuel1/anthropic-managed-agents](https://registry.terraform.io/providers/Elmanuel1/anthropic-managed-agents/latest)
 
 ## Resources
 
 | Resource | Auth | Description |
 |---|---|---|
-| `anthropic-wif_workspace` | Admin API key | Anthropic workspace |
-| `anthropic-wif_agent` | WIF | Agent with model, tools, and skills |
-| `anthropic-wif_environment` | WIF | Execution environment for agents |
-| `anthropic-wif_vault` | WIF | Vault for storing credentials |
-| `anthropic-wif_vault_credential` | WIF | MCP server credential in a vault |
-| `anthropic-wif_memory_store` | WIF | Memory store for agent persistence |
+| `anthropic_workspace` | Admin API key | Anthropic workspace |
+| `anthropic_wif_agent` | WIF | Agent with model, tools, and skills |
+| `anthropic_wif_environment` | WIF | Execution environment for agents |
+| `anthropic_wif_vault` | WIF | Vault for storing credentials |
+| `anthropic_wif_vault_credential` | WIF | MCP server credential in a vault |
+| `anthropic_memory_store` | Admin API key | Memory store for agent persistence |
 
 ## Quick Start
 
 ```terraform
 terraform {
   required_providers {
-    anthropic-wif = {
-      source  = "Elmanuel1/anthropic-wif"
-      version = "~> 0.4"
+    anthropic = {
+      source  = "Elmanuel1/anthropic-managed-agents"
+      version = "~> 0.0"
     }
   }
 }
 
-provider "anthropic-wif" {}
+provider "anthropic" {}
 
-resource "anthropic-wif_workspace" "example" {
+resource "anthropic_workspace" "example" {
   name = "my-workspace"
 }
 
-resource "anthropic-wif_agent" "example" {
-  workspace_id = anthropic-wif_workspace.example.id
+resource "anthropic_wif_agent" "example" {
+  workspace_id = anthropic_workspace.example.id
   name         = "my-agent"
   model        = "claude-sonnet-4-6"
   system       = "You are a helpful assistant."
@@ -51,37 +51,38 @@ resource "anthropic-wif_agent" "example" {
 | `ANTHROPIC_FEDERATION_RULE_ID` | Federation rule ID (`fdrl_...`) | WIF resources |
 | `ANTHROPIC_ORGANIZATION_ID` | Organization UUID | WIF resources |
 | `ANTHROPIC_SERVICE_ACCOUNT_ID` | Service account ID (`svac_...`) | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | TFC-injected OIDC JWT | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN` | Fallback OIDC JWT | WIF resources (fallback) |
-
-Set `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` on your TFC workspace to enable automatic JWT injection.
+| `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | TFC-injected OIDC JWT (set `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com`) | WIF resources |
+| `TFC_WORKLOAD_IDENTITY_TOKEN` | Generic TFC OIDC JWT (set `TFC_WORKLOAD_IDENTITY_AUDIENCE=https://api.anthropic.com`) | WIF resources |
 
 ### Anthropic Console Setup
 
 1. **Workload Identity Issuer**
    - Console → Settings → Workload Identity → Create issuer
-   - Issuer URL: `https://app.terraform.io` | JWKS source: `discovery`
+   - Issuer URL: `https://app.terraform.io` | JWKS source: `discovery` | Max token lifetime: `2h`
 
 2. **Service Account**
    - Console → Settings → Service Accounts → Create
+   - Assign `Workspace Developer` on each workspace this account manages
 
 3. **Federation Rule**
    - Console → Settings → Federation Rules → Create
-   - Audience: `https://api.anthropic.com`
-   - Subject: `organization:<tfc-org>:project:<project>:workspace:<workspace>:run_phase:apply`
-   - Target: service account from step 2
-   - Scope: `workspace:developer`
+   - Match type: `CEL`
+   - CEL condition:
+     ```cel
+     claims.sub.matches("^organization:<tfc-org>:project:<tfc-project>:workspace:<tfc-workspace>:run_phase:(plan|apply)$")
+     ```
+   - Target: service account from step 2 | Scope: `workspace:developer` | Token lifetime: `2h`
 
 ## Local Development
 
 ```bash
-go build -o terraform-provider-anthropic-wif .
+go build -o terraform-provider-anthropic-managed-agents .
 
 # ~/.terraformrc
 cat > ~/.terraformrc <<EOF
 provider_installation {
   dev_overrides {
-    "Elmanuel1/anthropic-wif" = "/path/to/provider/binary"
+    "Elmanuel1/anthropic-managed-agents" = "/path/to/provider/binary"
   }
   direct {}
 }

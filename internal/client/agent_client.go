@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-wif/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
 )
 
 type AgentResponse struct {
