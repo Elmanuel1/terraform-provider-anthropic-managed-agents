@@ -24,6 +24,7 @@ data "anthropic_memory_store" "shared" {
 
 ## Attributes Reference
 
+- `type` - Memory store type (e.g. `knowledge_base`).
 - `name` - Memory store name.
 - `description` - Memory store description.
 - `metadata` - Map of string key-value pairs.
