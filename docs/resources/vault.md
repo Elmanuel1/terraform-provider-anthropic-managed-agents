@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic: anthropic_wif_vault"
+page_title: "anthropic: anthropic_vault"
 subcategory: ""
 description: |-
   Manages an Anthropic vault for storing MCP server credentials.
 ---
 
-# Resource: anthropic_wif_vault
+# Resource: anthropic_vault
 
 Manages an Anthropic vault. Vaults are workspace-scoped containers for storing MCP server credentials that agents can use during sessions.
 
@@ -16,7 +16,7 @@ On destroy the vault is archived by default. Set `force_delete = true` to perman
 ## Example Usage
 
 ```terraform
-resource "anthropic_wif_vault" "example" {
+resource "anthropic_vault" "example" {
   workspace_id = anthropic_workspace.example.id
   display_name = "production-vault"
 
@@ -50,5 +50,5 @@ In addition to all arguments above, the following attributes are exported:
 Import by `workspace_id/vault_id`:
 
 ```shell
-terraform import anthropic_wif_vault.example wrks_xxx/vlt_yyy
+terraform import anthropic_vault.example wrks_xxx/vlt_yyy
 ```

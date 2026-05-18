@@ -35,7 +35,7 @@ type AgentClient struct {
 	httpClient *http.Client
 }
 
-func NewAgentClient(creds auth.WIFBearer) *AgentClient {
+func NewAgentClient(creds auth.Credentials) *AgentClient {
 	return &AgentClient{creds: creds, httpClient: defaultHTTPClient}
 }
 

@@ -31,44 +31,43 @@ type MintedToken struct {
 	ExpiresAt   time.Time
 }
 
-func ReadWIFConfig() (*WIFConfig, error) {
-	rule := os.Getenv("ANTHROPIC_FEDERATION_RULE_ID")
-	org := os.Getenv("ANTHROPIC_ORGANIZATION_ID")
-	svc := os.Getenv("ANTHROPIC_SERVICE_ACCOUNT_ID")
+// NewWIFConfig builds a WIFConfig from already-resolved values.
+// The JWT is always read from the environment (TFC injects it automatically).
+func NewWIFConfig(ruleID, orgID, svcID string) (*WIFConfig, error) {
 	jwt := os.Getenv("TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC")
 	if jwt == "" {
 		jwt = os.Getenv("TFC_WORKLOAD_IDENTITY_TOKEN")
 	}
 
-	// Not configured — no WIF
-	if rule == "" && org == "" && svc == "" && jwt == "" {
+	if ruleID == "" && orgID == "" && svcID == "" && jwt == "" {
 		return nil, nil
 	}
 
 	var missing []string
-	if rule == "" {
-		missing = append(missing, "ANTHROPIC_FEDERATION_RULE_ID")
+	if ruleID == "" {
+		missing = append(missing, "federation_rule_id")
 	}
-	if org == "" {
-		missing = append(missing, "ANTHROPIC_ORGANIZATION_ID")
+	if orgID == "" {
+		missing = append(missing, "organization_id")
 	}
-	if svc == "" {
-		missing = append(missing, "ANTHROPIC_SERVICE_ACCOUNT_ID")
+	if svcID == "" {
+		missing = append(missing, "service_account_id")
 	}
 	if jwt == "" {
 		missing = append(missing, "TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC (or TFC_WORKLOAD_IDENTITY_TOKEN)")
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("incomplete WIF configuration, missing: %v", missing)
+		return nil, fmt.Errorf("incomplete WIF configuration, missing: %s", strings.Join(missing, ", "))
 	}
 
 	return &WIFConfig{
-		FederationRuleID: rule,
-		OrganizationID:   org,
-		ServiceAccountID: svc,
+		FederationRuleID: ruleID,
+		OrganizationID:   orgID,
+		ServiceAccountID: svcID,
 		jwt:              jwt,
 	}, nil
 }
+
 
 func jwtClaims(token string) (sub, aud string) {
 	parts := strings.Split(token, ".")

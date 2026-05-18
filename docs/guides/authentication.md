@@ -8,7 +8,7 @@ description: |-
 
 ## How WIF Token Exchange Works
 
-Every workspace-scoped resource (agent, environment, vault, vault credential, memory store) authenticates via a short-lived bearer token obtained through Workload Identity Federation (WIF).
+`anthropic_environment`, `anthropic_vault`, and `anthropic_vault_credential` authenticate via a short-lived bearer token obtained through Workload Identity Federation (WIF). `anthropic_agent` also supports WIF; alternatively it can use `workspace_api_key` set in the provider block. `anthropic_workspace` and `anthropic_memory_store` use the Admin API key.
 
 The flow on each Terraform run:
 
@@ -42,8 +42,8 @@ Filter by **Issuer**, **Service account**, **Rule**, or **Outcome** to narrow re
 | `jwt_expired` | The TFC OIDC JWT had already expired when the exchange was attempted. TFC JWTs are valid for a short window. | Ensure the provider is not caching a stale JWT across multiple runs. Each new run injects a fresh token. |
 | `jti_reused` | Only possible when **JTI replay protection is enabled** on the issuer. With it disabled (the default), this error will not appear. If you enable JTI replay protection and see this, the provider's workspace-level token cache should prevent it; file a bug if it recurs. |
 | `sub_mismatch` | The JWT's `sub` claim did not satisfy the CEL condition on the federation rule. | Check that the TFC org, project, and workspace names in the CEL regex exactly match what TFC injects. Names are case-sensitive. |
-| `rule_not_found` | The `federation_rule_id` env var points to a rule that does not exist or has been deleted. | Verify `ANTHROPIC_FEDERATION_RULE_ID` is correct. |
-| `service_account_not_found` | The `service_account_id` does not exist in the organization. | Verify `ANTHROPIC_SERVICE_ACCOUNT_ID` is correct. |
+| `rule_not_found` | The `federation_rule_id` in the provider block points to a rule that does not exist or has been deleted. | Verify `federation_rule_id` in your provider configuration is correct. |
+| `service_account_not_found` | The `service_account_id` does not exist in the organization. | Verify `service_account_id` in your provider configuration is correct. |
 | `insufficient_scope` | The federation rule's OAuth scope does not grant the permissions needed. | Ensure the rule has `workspace:developer` scope. |
 | `workspace_not_accessible` | The service account does not have `Workspace Developer` access to the target workspace. | In Console → Settings → Service Accounts, add the workspace with `Workspace Developer` role. |
 
@@ -68,7 +68,7 @@ The server caps the issued lifetime at whichever of the two settings above is sm
 2. Set the range to cover your failed run.
 3. Look for a `Failure` row with a reason. The table above maps each reason to a fix.
 4. If all rows are `Success` but the apply still fails, check whether the token expired mid-run (increase issuer and rule lifetime to `2h`).
-5. If there are no rows at all, the provider never attempted an exchange. Check that `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, and `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` are all set on the TFC workspace.
+5. If there are no rows at all, the provider never attempted an exchange. Check that `federation_rule_id`, `organization_id`, and `service_account_id` are set in the provider block, and that `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` (or `TFC_WORKLOAD_IDENTITY_TOKEN`) is injected by TFC.
 
 ## CEL Condition Reference
 

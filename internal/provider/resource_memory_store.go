@@ -113,9 +113,10 @@ func (r *MemoryStoreResource) Configure(_ context.Context, req resource.Configur
 	r.data = data
 }
 
-func (r *MemoryStoreResource) requireAPIKey(diags interface{ AddError(string, string) }) bool {
-	if r.data == nil || r.data.apiKey == "" {
-		diags.AddError("Missing API key", "ANTHROPIC_ADMIN_API_KEY is required for memory store resources.")
+func (r *MemoryStoreResource) requireAdminKey(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.adminKey == "" {
+		diags.AddError("Missing admin API key",
+			"Set admin_api_key in the provider block or ANTHROPIC_ADMIN_API_KEY environment variable. Required for anthropic_memory_store.")
 		return false
 	}
 	return true
@@ -127,11 +128,11 @@ func (r *MemoryStoreResource) Create(ctx context.Context, req resource.CreateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireAPIKey(&resp.Diagnostics) {
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.apiKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
 	s, err := c.Create(ctx, buildMemoryStoreBody(ctx, data, &resp.Diagnostics))
 	if resp.Diagnostics.HasError() {
 		return
@@ -150,11 +151,11 @@ func (r *MemoryStoreResource) Read(ctx context.Context, req resource.ReadRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireAPIKey(&resp.Diagnostics) {
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.apiKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
 	s, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read memory store: %s", err))
@@ -174,11 +175,11 @@ func (r *MemoryStoreResource) Update(ctx context.Context, req resource.UpdateReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireAPIKey(&resp.Diagnostics) {
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.apiKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
 	s, err := c.Update(ctx, data.Id.ValueString(), buildMemoryStoreBody(ctx, data, &resp.Diagnostics))
 	if resp.Diagnostics.HasError() {
 		return
@@ -197,11 +198,11 @@ func (r *MemoryStoreResource) Delete(ctx context.Context, req resource.DeleteReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.requireAPIKey(&resp.Diagnostics) {
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.apiKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete memory store: %s", err))

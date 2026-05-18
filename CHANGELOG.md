@@ -4,6 +4,50 @@ All notable changes to this provider are documented here.
 
 ---
 
+## [0.5.0] (2026-05-17)
+
+### Breaking Changes
+
+- **Resource addresses renamed** — the `wif_` prefix has been dropped from all four WIF-authenticated resources. Existing state will show these as destroy+create unless you add `moved` blocks before upgrading.
+
+  | Old address | New address |
+  |---|---|
+  | `anthropic_wif_agent` | `anthropic_agent` |
+  | `anthropic_wif_environment` | `anthropic_environment` |
+  | `anthropic_wif_vault` | `anthropic_vault` |
+  | `anthropic_wif_vault_credential` | `anthropic_vault_credential` |
+
+  Add the following `moved` blocks to your root module before running `terraform apply` on this version:
+
+  ```hcl
+  moved {
+    from = anthropic_wif_agent.<name>
+    to   = anthropic_agent.<name>
+  }
+  moved {
+    from = anthropic_wif_environment.<name>
+    to   = anthropic_environment.<name>
+  }
+  moved {
+    from = anthropic_wif_vault.<name>
+    to   = anthropic_vault.<name>
+  }
+  moved {
+    from = anthropic_wif_vault_credential.<name>
+    to   = anthropic_vault_credential.<name>
+  }
+  ```
+
+- **Provider env var fallbacks removed** — credentials must now be set explicitly in the provider block via tfvars. The only environment variable still read by the provider is the WIF token (`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` / `TFC_WORKLOAD_IDENTITY_TOKEN`), which Terraform Cloud injects automatically.
+
+### Added
+
+- **`workspace_api_key`** provider attribute — workspace-scoped API key for `anthropic_agent` authentication. When both `workspace_api_key` and WIF are configured, WIF takes precedence.
+- **`anthropic_agent`**: `workspace_id` is now optional. Omit it when authenticating with `workspace_api_key`.
+- **Plan-time credential validation** — `anthropic_agent` now reports a missing-credentials error at plan time rather than apply time.
+
+---
+
 ## [0.4.4] (2026-05-17)
 
 ### Fixed

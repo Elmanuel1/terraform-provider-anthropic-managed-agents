@@ -20,11 +20,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type EnvironmentResource struct {
+type WIFEnvironmentResource struct {
 	data *providerData
 }
 
-type EnvironmentModel struct {
+type WIFEnvironmentModel struct {
 	Id                   types.String `tfsdk:"id"`
 	WorkspaceId          types.String `tfsdk:"workspace_id"`
 	Name                 types.String `tfsdk:"name"`
@@ -48,7 +48,7 @@ func nullableBool(b *bool) types.Bool {
 	return types.BoolValue(*b)
 }
 
-func (m *EnvironmentModel) fill(e client.EnvironmentResponse) {
+func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) {
 	m.Id = types.StringValue(e.ID)
 	m.Name = types.StringValue(e.Name)
 	m.Description = nullableString(e.Description)
@@ -95,18 +95,18 @@ func (m *EnvironmentModel) fill(e client.EnvironmentResponse) {
 	m.Metadata = fillMetadata(e.Metadata)
 }
 
-func NewEnvironmentResource() resource.Resource {
-	return &EnvironmentResource{}
+func NewWIFEnvironmentResource() resource.Resource {
+	return &WIFEnvironmentResource{}
 }
 
-var _ resource.Resource = &EnvironmentResource{}
-var _ resource.ResourceWithImportState = &EnvironmentResource{}
+var _ resource.Resource = &WIFEnvironmentResource{}
+var _ resource.ResourceWithImportState = &WIFEnvironmentResource{}
 
-func (r *EnvironmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_wif_environment"
+func (r *WIFEnvironmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_environment"
 }
 
-func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *WIFEnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages an Anthropic cloud environment for agent sessions.",
 		Attributes: map[string]schema.Attribute{
@@ -177,7 +177,7 @@ func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-func (r *EnvironmentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *WIFEnvironmentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -189,7 +189,7 @@ func (r *EnvironmentResource) Configure(_ context.Context, req resource.Configur
 	r.data = data
 }
 
-func (r *EnvironmentResource) buildBody(ctx context.Context, data EnvironmentModel) map[string]any {
+func (r *WIFEnvironmentResource) buildBody(ctx context.Context, data WIFEnvironmentModel) map[string]any {
 	networking := map[string]any{"type": data.NetworkingType.ValueString()}
 	if data.NetworkingType.ValueString() == "limited" {
 		var hosts []string
@@ -224,21 +224,25 @@ func (r *EnvironmentResource) buildBody(ctx context.Context, data EnvironmentMod
 	return body
 }
 
-func (r *EnvironmentResource) creds(workspaceID string) auth.WIFBearer {
+func (r *WIFEnvironmentResource) creds(workspaceID string) auth.WIFBearer {
 	return auth.WIFBearer{Config: r.data.wif, WorkspaceID: workspaceID}
 }
 
-func (r *EnvironmentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+func (r *WIFEnvironmentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
 	if r.data == nil || r.data.wif == nil {
-		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for environment resources.")
+		if r.data != nil && r.data.wifErr != nil {
+			diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
+		} else {
+			diags.AddError("Missing WIF configuration",
+				"Set federation_rule_id, organization_id, service_account_id in the provider block (or via ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID) and ensure TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC is injected.")
+		}
 		return false
 	}
 	return true
 }
 
-func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data EnvironmentModel
+func (r *WIFEnvironmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data WIFEnvironmentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -257,8 +261,8 @@ func (r *EnvironmentResource) Create(ctx context.Context, req resource.CreateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data EnvironmentModel
+func (r *WIFEnvironmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data WIFEnvironmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -281,8 +285,8 @@ func (r *EnvironmentResource) Read(ctx context.Context, req resource.ReadRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *EnvironmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data EnvironmentModel
+func (r *WIFEnvironmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data WIFEnvironmentModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -301,8 +305,8 @@ func (r *EnvironmentResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data EnvironmentModel
+func (r *WIFEnvironmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data WIFEnvironmentModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -323,7 +327,7 @@ func (r *EnvironmentResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 }
 
-func (r *EnvironmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *WIFEnvironmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.SplitN(req.ID, "/", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/environment_id")

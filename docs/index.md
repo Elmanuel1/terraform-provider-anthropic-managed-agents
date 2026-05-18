@@ -1,25 +1,45 @@
 ---
 page_title: "anthropic Provider - Elmanuel1/anthropic-managed-agents"
 description: |-
-  Terraform provider for managing Anthropic platform resources. Workspace-scoped resources (agents, environments, vaults) authenticate via WIF. Organization-level resources (workspaces, memory stores) use the Admin API key.
+  Terraform provider for managing Anthropic platform resources. Supports Admin API key, Workload Identity Federation (WIF), and workspace API key authentication.
 ---
 
 # anthropic Provider
 
-Manage Anthropic platform resources using Terraform. Resources that are workspace-scoped authenticate via Workload Identity Federation (WIF). Resources managed at the organization level use the Anthropic Admin API key directly.
+Manage Anthropic platform resources using Terraform. All provider attributes are optional; each resource validates only the credentials it needs at operation time.
 
-## Authentication
+## Provider Configuration
 
-| Environment Variable | Description | Required |
+```terraform
+terraform {
+  required_providers {
+    anthropic = {
+      source  = "Elmanuel1/anthropic-managed-agents"
+      version = "~> 0.0"
+    }
+  }
+}
+
+provider "anthropic" {
+  admin_api_key      = var.anthropic_admin_api_key
+  federation_rule_id = var.anthropic_federation_rule_id
+  organization_id    = var.anthropic_organization_id
+  service_account_id = var.anthropic_service_account_id
+  workspace_api_key  = var.anthropic_workspace_api_key
+}
+```
+
+The OIDC JWT (`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` or `TFC_WORKLOAD_IDENTITY_TOKEN`) is read from the environment only — Terraform Cloud injects it automatically per run.
+
+## Schema
+
+| Attribute | Type | Required for |
 |---|---|---|
-| `ANTHROPIC_ADMIN_API_KEY` | Anthropic Admin API key (`sk-ant-admin-...`) | Always |
-| `ANTHROPIC_FEDERATION_RULE_ID` | Federation rule ID (`fdrl_...`) | WIF resources |
-| `ANTHROPIC_ORGANIZATION_ID` | Anthropic organization UUID | WIF resources |
-| `ANTHROPIC_SERVICE_ACCOUNT_ID` | Service account ID (`svac_...`) | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` | Audience-specific OIDC JWT. Set `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC=https://api.anthropic.com` on the TFC workspace and Terraform Cloud injects this automatically. | WIF resources |
-| `TFC_WORKLOAD_IDENTITY_TOKEN` | Generic OIDC JWT. Set `TFC_WORKLOAD_IDENTITY_AUDIENCE=https://api.anthropic.com` on the TFC workspace if you use the single-audience slot. The provider reads this when `TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` is absent. | WIF resources |
-
-Use `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC` (audience-specific) when the workspace already uses `TFC_WORKLOAD_IDENTITY_AUDIENCE` for another provider. Use the generic `TFC_WORKLOAD_IDENTITY_AUDIENCE` slot if Anthropic is the only workload identity consumer in that workspace.
+| `admin_api_key` | String, sensitive | `anthropic_workspace`, `anthropic_memory_store` |
+| `workspace_api_key` | String, sensitive | `anthropic_agent` (when not using WIF) |
+| `federation_rule_id` | String | `anthropic_agent`, `anthropic_environment`, `anthropic_vault`, `anthropic_vault_credential` (WIF) |
+| `organization_id` | String | `anthropic_agent`, `anthropic_environment`, `anthropic_vault`, `anthropic_vault_credential` (WIF) |
+| `service_account_id` | String | `anthropic_agent`, `anthropic_environment`, `anthropic_vault`, `anthropic_vault_credential` (WIF) |
 
 ### Anthropic Console Setup
 
@@ -47,23 +67,20 @@ See the [Authentication Events guide](guides/authentication.md) for debugging to
 
 ## Example Usage
 
-```terraform
-terraform {
-  required_providers {
-    anthropic = {
-      source  = "Elmanuel1/anthropic-managed-agents"
-      version = "~> 0.0"
-    }
-  }
-}
+### WIF authentication
 
-provider "anthropic" {}
+```terraform
+provider "anthropic" {
+  federation_rule_id = var.anthropic_federation_rule_id
+  organization_id    = var.anthropic_organization_id
+  service_account_id = var.anthropic_service_account_id
+}
 
 resource "anthropic_workspace" "example" {
   name = "my-workspace"
 }
 
-resource "anthropic_wif_agent" "example" {
+resource "anthropic_agent" "example" {
   workspace_id = anthropic_workspace.example.id
   name         = "my-agent"
   model        = "claude-sonnet-4-6"
@@ -71,16 +88,30 @@ resource "anthropic_wif_agent" "example" {
 }
 ```
 
+### Workspace API key authentication
+
+```terraform
+provider "anthropic" {
+  workspace_api_key = var.anthropic_workspace_api_key
+}
+
+resource "anthropic_agent" "example" {
+  name   = "my-agent"
+  model  = "claude-sonnet-4-6"
+  system = "You are a helpful assistant."
+}
+```
+
 ## Resources
 
 | Resource | Auth | Description |
 |---|---|---|
-| [`anthropic_workspace`](resources/workspace.md) | Admin API key | Anthropic workspace |
-| [`anthropic_memory_store`](resources/memory_store.md) | Admin API key | Memory store for agent persistence |
-| [`anthropic_wif_agent`](resources/agent.md) | WIF | Agent with model, tools, and skills |
-| [`anthropic_wif_environment`](resources/environment.md) | WIF | Execution environment for agents |
-| [`anthropic_wif_vault`](resources/vault.md) | WIF | Vault for storing credentials |
-| [`anthropic_wif_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
+| [`anthropic_workspace`](resources/workspace.md) | `admin_api_key` | Anthropic workspace |
+| [`anthropic_memory_store`](resources/memory_store.md) | `admin_api_key` | Memory store for agent persistence |
+| [`anthropic_agent`](resources/agent.md) | WIF or `workspace_api_key` | Anthropic agent |
+| [`anthropic_environment`](resources/environment.md) | WIF | Execution environment for agents |
+| [`anthropic_vault`](resources/vault.md) | WIF | Vault for storing credentials |
+| [`anthropic_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
 
 ## Guides
 

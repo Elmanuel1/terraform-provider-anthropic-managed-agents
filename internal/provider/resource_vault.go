@@ -16,11 +16,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type VaultResource struct {
+type WIFVaultResource struct {
 	data *providerData
 }
 
-type VaultModel struct {
+type WIFVaultModel struct {
 	Id          types.String `tfsdk:"id"`
 	WorkspaceId types.String `tfsdk:"workspace_id"`
 	DisplayName types.String `tfsdk:"display_name"`
@@ -31,7 +31,7 @@ type VaultModel struct {
 	ArchivedAt  types.String `tfsdk:"archived_at"`
 }
 
-func (m *VaultModel) fill(v client.VaultResponse) {
+func (m *WIFVaultModel) fill(v client.VaultResponse) {
 	m.Id = types.StringValue(v.ID)
 	m.DisplayName = types.StringValue(v.DisplayName)
 	m.CreatedAt = types.StringValue(v.CreatedAt)
@@ -40,7 +40,7 @@ func (m *VaultModel) fill(v client.VaultResponse) {
 	m.Metadata = fillMetadata(v.Metadata)
 }
 
-func buildVaultBody(data VaultModel) map[string]any {
+func buildVaultBody(data WIFVaultModel) map[string]any {
 	body := map[string]any{"display_name": data.DisplayName.ValueString()}
 	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() {
 		meta := make(map[string]string)
@@ -50,18 +50,18 @@ func buildVaultBody(data VaultModel) map[string]any {
 	return body
 }
 
-func NewVaultResource() resource.Resource {
-	return &VaultResource{}
+func NewWIFVaultResource() resource.Resource {
+	return &WIFVaultResource{}
 }
 
-var _ resource.Resource = &VaultResource{}
-var _ resource.ResourceWithImportState = &VaultResource{}
+var _ resource.Resource = &WIFVaultResource{}
+var _ resource.ResourceWithImportState = &WIFVaultResource{}
 
-func (r *VaultResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_wif_vault"
+func (r *WIFVaultResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vault"
 }
 
-func (r *VaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *WIFVaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages an Anthropic vault for storing credentials.",
 		Attributes: map[string]schema.Attribute{
@@ -99,7 +99,7 @@ func (r *VaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	}
 }
 
-func (r *VaultResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *WIFVaultResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -111,17 +111,21 @@ func (r *VaultResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
-func (r *VaultResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+func (r *WIFVaultResource) requireWIF(diags interface{ AddError(string, string) }) bool {
 	if r.data == nil || r.data.wif == nil {
-		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for vault resources.")
+		if r.data != nil && r.data.wifErr != nil {
+			diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
+		} else {
+			diags.AddError("Missing WIF configuration",
+				"Set federation_rule_id, organization_id, service_account_id in the provider block (or via ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID) and ensure TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC is injected.")
+		}
 		return false
 	}
 	return true
 }
 
-func (r *VaultResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data VaultModel
+func (r *WIFVaultResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data WIFVaultModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -140,8 +144,8 @@ func (r *VaultResource) Create(ctx context.Context, req resource.CreateRequest, 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data VaultModel
+func (r *WIFVaultResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data WIFVaultModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -164,8 +168,8 @@ func (r *VaultResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data VaultModel
+func (r *WIFVaultResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data WIFVaultModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -184,8 +188,8 @@ func (r *VaultResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data VaultModel
+func (r *WIFVaultResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data WIFVaultModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -206,7 +210,7 @@ func (r *VaultResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 }
 
-func (r *VaultResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *WIFVaultResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.SplitN(req.ID, "/", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/vault_id")

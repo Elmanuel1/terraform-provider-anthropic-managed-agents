@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic: anthropic_wif_environment"
+page_title: "anthropic: anthropic_environment"
 subcategory: ""
 description: |-
   Manages an Anthropic cloud environment for agent sessions.
 ---
 
-# Resource: anthropic_wif_environment
+# Resource: anthropic_environment
 
 Manages an Anthropic cloud execution environment. Environments define the runtime configuration for agent sessions: networking policy, pre-installed packages, and MCP server access.
 
@@ -18,7 +18,7 @@ On destroy the environment is archived by default. Set `force_delete = true` to 
 ### Unrestricted environment
 
 ```terraform
-resource "anthropic_wif_environment" "example" {
+resource "anthropic_environment" "example" {
   workspace_id = anthropic_workspace.example.id
   name         = "default-env"
 }
@@ -27,7 +27,7 @@ resource "anthropic_wif_environment" "example" {
 ### Limited networking with packages
 
 ```terraform
-resource "anthropic_wif_environment" "example" {
+resource "anthropic_environment" "example" {
   workspace_id    = anthropic_workspace.example.id
   name            = "python-env"
   networking_type = "limited"
@@ -74,5 +74,5 @@ In addition to all arguments above, the following attributes are exported:
 Import by `workspace_id/environment_id`:
 
 ```shell
-terraform import anthropic_wif_environment.example wrks_xxx/env_yyy
+terraform import anthropic_environment.example wrks_xxx/env_yyy
 ```

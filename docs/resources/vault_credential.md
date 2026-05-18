@@ -1,11 +1,11 @@
 ---
-page_title: "anthropic: anthropic_wif_vault_credential"
+page_title: "anthropic: anthropic_vault_credential"
 subcategory: ""
 description: |-
   Manages a credential stored in an Anthropic vault.
 ---
 
-# Resource: anthropic_wif_vault_credential
+# Resource: anthropic_vault_credential
 
 Manages a credential inside an Anthropic vault. Credentials provide MCP server authentication for agents. Both static bearer tokens and OAuth flows are supported.
 
@@ -20,9 +20,9 @@ On destroy the credential is archived by default. Set `force_delete = true` to p
 ### Static bearer token
 
 ```terraform
-resource "anthropic_wif_vault_credential" "example" {
+resource "anthropic_vault_credential" "example" {
   workspace_id   = anthropic_workspace.example.id
-  vault_id       = anthropic_wif_vault.example.id
+  vault_id       = anthropic_vault.example.id
   display_name   = "my-mcp-server-token"
   auth_type      = "static_bearer"
   mcp_server_url = "https://mcp.example.com"
@@ -33,9 +33,9 @@ resource "anthropic_wif_vault_credential" "example" {
 ### OAuth with refresh
 
 ```terraform
-resource "anthropic_wif_vault_credential" "example" {
+resource "anthropic_vault_credential" "example" {
   workspace_id   = anthropic_workspace.example.id
-  vault_id       = anthropic_wif_vault.example.id
+  vault_id       = anthropic_vault.example.id
   display_name   = "my-oauth-credential"
   auth_type      = "mcp_oauth"
   mcp_server_url = "https://mcp.example.com"
@@ -88,7 +88,7 @@ In addition to all arguments above, the following attributes are exported:
 Import by `workspace_id/vault_id/credential_id`:
 
 ```shell
-terraform import anthropic_wif_vault_credential.example wrks_xxx/vlt_yyy/vcrd_zzz
+terraform import anthropic_vault_credential.example wrks_xxx/vlt_yyy/vcrd_zzz
 ```
 
 ~> **Note:** Write-only fields (`token`, `access_token`, `refresh_token`, `client_secret`) cannot be recovered from state after import. Re-apply with the values set to restore them in the API.

@@ -76,9 +76,17 @@ func (r *WorkspaceResource) Configure(_ context.Context, req resource.ConfigureR
 	r.data = data
 }
 
+func (r *WorkspaceResource) requireAdminKey(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.adminKey == "" {
+		diags.AddError("Missing admin API key",
+			"Set admin_api_key in the provider block or ANTHROPIC_ADMIN_API_KEY environment variable. Required for anthropic_workspace.")
+		return false
+	}
+	return true
+}
+
 func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 	var data WorkspaceModel
@@ -87,7 +95,7 @@ func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.apiKey})
+	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
 	w, err := c.Create(ctx, data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create workspace: %s", err))
@@ -98,8 +106,7 @@ func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 	var data WorkspaceModel
@@ -108,7 +115,7 @@ func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.apiKey})
+	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
 	w, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read workspace: %s", err))
@@ -123,8 +130,7 @@ func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 }
 
 func (r *WorkspaceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 	var data WorkspaceModel
@@ -133,7 +139,7 @@ func (r *WorkspaceResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.apiKey})
+	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
 	w, err := c.Update(ctx, data.Id.ValueString(), map[string]any{"name": data.Name.ValueString()})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update workspace: %s", err))
@@ -144,8 +150,7 @@ func (r *WorkspaceResource) Update(ctx context.Context, req resource.UpdateReque
 }
 
 func (r *WorkspaceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
 	var data WorkspaceModel
@@ -154,18 +159,17 @@ func (r *WorkspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.apiKey})
+	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
 	if err := c.Archive(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive workspace: %s", err))
 	}
 }
 
 func (r *WorkspaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	if r.data == nil {
-		resp.Diagnostics.AddError("Provider not configured", "Provider data is missing.")
+	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.apiKey})
+	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
 	id, err := c.ResolveByName(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Import Error", fmt.Sprintf("Unable to resolve workspace %q: %s", req.ID, err))

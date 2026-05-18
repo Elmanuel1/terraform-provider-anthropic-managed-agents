@@ -16,11 +16,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type VaultCredentialResource struct {
+type WIFVaultCredentialResource struct {
 	data *providerData
 }
 
-type VaultCredentialModel struct {
+type WIFVaultCredentialModel struct {
 	Id          types.String `tfsdk:"id"`
 	WorkspaceId types.String `tfsdk:"workspace_id"`
 	VaultId     types.String `tfsdk:"vault_id"`
@@ -47,7 +47,7 @@ type VaultCredentialModel struct {
 	ArchivedAt types.String `tfsdk:"archived_at"`
 }
 
-func (m *VaultCredentialModel) fill(r client.VaultCredentialResponse) {
+func (m *WIFVaultCredentialModel) fill(r client.VaultCredentialResponse) {
 	m.Id = types.StringValue(r.ID)
 	m.VaultId = types.StringValue(r.VaultID)
 	m.DisplayName = nullableString(r.DisplayName)
@@ -83,7 +83,7 @@ func (m *VaultCredentialModel) fill(r client.VaultCredentialResponse) {
 	// They are never returned by the API and must not be written to state.
 }
 
-func buildCredentialBody(data VaultCredentialModel) (map[string]any, error) {
+func buildCredentialBody(data WIFVaultCredentialModel) (map[string]any, error) {
 	authObj := map[string]any{
 		"type":           data.AuthType.ValueString(),
 		"mcp_server_url": data.MCPServerURL.ValueString(),
@@ -140,18 +140,18 @@ func buildCredentialBody(data VaultCredentialModel) (map[string]any, error) {
 	return body, nil
 }
 
-func NewVaultCredentialResource() resource.Resource {
-	return &VaultCredentialResource{}
+func NewWIFVaultCredentialResource() resource.Resource {
+	return &WIFVaultCredentialResource{}
 }
 
-var _ resource.Resource = &VaultCredentialResource{}
-var _ resource.ResourceWithImportState = &VaultCredentialResource{}
+var _ resource.Resource = &WIFVaultCredentialResource{}
+var _ resource.ResourceWithImportState = &WIFVaultCredentialResource{}
 
-func (r *VaultCredentialResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_wif_vault_credential"
+func (r *WIFVaultCredentialResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_vault_credential"
 }
 
-func (r *VaultCredentialResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *WIFVaultCredentialResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Manages a credential stored in an Anthropic vault.",
 		Attributes: map[string]schema.Attribute{
@@ -259,7 +259,7 @@ func (r *VaultCredentialResource) Schema(_ context.Context, _ resource.SchemaReq
 	}
 }
 
-func (r *VaultCredentialResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *WIFVaultCredentialResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -271,23 +271,27 @@ func (r *VaultCredentialResource) Configure(_ context.Context, req resource.Conf
 	r.data = data
 }
 
-func (r *VaultCredentialResource) requireWIF(diags interface{ AddError(string, string) }) bool {
+func (r *WIFVaultCredentialResource) requireWIF(diags interface{ AddError(string, string) }) bool {
 	if r.data == nil || r.data.wif == nil {
-		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for vault credential resources.")
+		if r.data != nil && r.data.wifErr != nil {
+			diags.AddError("Invalid WIF configuration", r.data.wifErr.Error())
+		} else {
+			diags.AddError("Missing WIF configuration",
+				"Set federation_rule_id, organization_id, service_account_id in the provider block (or via ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID) and ensure TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC is injected.")
+		}
 		return false
 	}
 	return true
 }
 
-func (r *VaultCredentialResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data VaultCredentialModel
+func (r *WIFVaultCredentialResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	// WriteOnly fields are absent from the plan's new state — read them from config.
-	var cfg VaultCredentialModel
+	var cfg WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -317,8 +321,8 @@ func (r *VaultCredentialResource) Create(ctx context.Context, req resource.Creat
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultCredentialResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data VaultCredentialModel
+func (r *WIFVaultCredentialResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -341,14 +345,14 @@ func (r *VaultCredentialResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data VaultCredentialModel
+func (r *WIFVaultCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	// WriteOnly fields are absent from the plan's new state — read them from config.
-	var cfg VaultCredentialModel
+	var cfg WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -378,8 +382,8 @@ func (r *VaultCredentialResource) Update(ctx context.Context, req resource.Updat
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *VaultCredentialResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data VaultCredentialModel
+func (r *WIFVaultCredentialResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data WIFVaultCredentialModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -400,7 +404,7 @@ func (r *VaultCredentialResource) Delete(ctx context.Context, req resource.Delet
 	}
 }
 
-func (r *VaultCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *WIFVaultCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.SplitN(req.ID, "/", 3)
 	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/vault_id/credential_id")

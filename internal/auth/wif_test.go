@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-func TestReadWIFConfig_NotConfigured(t *testing.T) {
+func TestNewWIFConfig_NotConfigured(t *testing.T) {
 	clearWIFEnv(t)
-	cfg, err := ReadWIFConfig()
+	cfg, err := NewWIFConfig("", "", "")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -22,14 +22,11 @@ func TestReadWIFConfig_NotConfigured(t *testing.T) {
 	}
 }
 
-func TestReadWIFConfig_Complete(t *testing.T) {
+func TestNewWIFConfig_Complete(t *testing.T) {
 	clearWIFEnv(t)
-	t.Setenv("ANTHROPIC_FEDERATION_RULE_ID", "rule-1")
-	t.Setenv("ANTHROPIC_ORGANIZATION_ID", "org-1")
-	t.Setenv("ANTHROPIC_SERVICE_ACCOUNT_ID", "svc-1")
 	t.Setenv("TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC", "tok")
 
-	cfg, err := ReadWIFConfig()
+	cfg, err := NewWIFConfig("rule-1", "org-1", "svc-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,11 +38,11 @@ func TestReadWIFConfig_Complete(t *testing.T) {
 	}
 }
 
-func TestReadWIFConfig_Partial(t *testing.T) {
+func TestNewWIFConfig_Partial(t *testing.T) {
 	clearWIFEnv(t)
-	t.Setenv("ANTHROPIC_FEDERATION_RULE_ID", "rule-1")
+	t.Setenv("TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC", "tok")
 
-	_, err := ReadWIFConfig()
+	_, err := NewWIFConfig("rule-1", "", "")
 	if err == nil {
 		t.Fatal("expected error for partial config")
 	}
@@ -108,16 +105,11 @@ func TestMintToken_APIError(t *testing.T) {
 	}
 }
 
-// helpers
-
-func TestReadWIFConfig_GenericTokenFallback(t *testing.T) {
+func TestNewWIFConfig_GenericTokenFallback(t *testing.T) {
 	clearWIFEnv(t)
-	t.Setenv("ANTHROPIC_FEDERATION_RULE_ID", "rule-1")
-	t.Setenv("ANTHROPIC_ORGANIZATION_ID", "org-1")
-	t.Setenv("ANTHROPIC_SERVICE_ACCOUNT_ID", "svc-1")
 	t.Setenv("TFC_WORKLOAD_IDENTITY_TOKEN", "generic-tok")
 
-	cfg, err := ReadWIFConfig()
+	cfg, err := NewWIFConfig("rule-1", "org-1", "svc-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,15 +121,12 @@ func TestReadWIFConfig_GenericTokenFallback(t *testing.T) {
 	}
 }
 
-func TestReadWIFConfig_SuffixedTokenWins(t *testing.T) {
+func TestNewWIFConfig_SuffixedTokenWins(t *testing.T) {
 	clearWIFEnv(t)
-	t.Setenv("ANTHROPIC_FEDERATION_RULE_ID", "rule-1")
-	t.Setenv("ANTHROPIC_ORGANIZATION_ID", "org-1")
-	t.Setenv("ANTHROPIC_SERVICE_ACCOUNT_ID", "svc-1")
 	t.Setenv("TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC", "suffixed-tok")
 	t.Setenv("TFC_WORKLOAD_IDENTITY_TOKEN", "generic-tok")
 
-	cfg, err := ReadWIFConfig()
+	cfg, err := NewWIFConfig("rule-1", "org-1", "svc-1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,13 +135,10 @@ func TestReadWIFConfig_SuffixedTokenWins(t *testing.T) {
 	}
 }
 
-func TestReadWIFConfig_NeitherToken(t *testing.T) {
+func TestNewWIFConfig_NeitherToken(t *testing.T) {
 	clearWIFEnv(t)
-	t.Setenv("ANTHROPIC_FEDERATION_RULE_ID", "rule-1")
-	t.Setenv("ANTHROPIC_ORGANIZATION_ID", "org-1")
-	t.Setenv("ANTHROPIC_SERVICE_ACCOUNT_ID", "svc-1")
 
-	_, err := ReadWIFConfig()
+	_, err := NewWIFConfig("rule-1", "org-1", "svc-1")
 	if err == nil {
 		t.Fatal("expected error when neither token var is set")
 	}
@@ -166,9 +152,6 @@ func TestReadWIFConfig_NeitherToken(t *testing.T) {
 func clearWIFEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
-		"ANTHROPIC_FEDERATION_RULE_ID",
-		"ANTHROPIC_ORGANIZATION_ID",
-		"ANTHROPIC_SERVICE_ACCOUNT_ID",
 		"TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC",
 		"TFC_WORKLOAD_IDENTITY_TOKEN",
 	} {

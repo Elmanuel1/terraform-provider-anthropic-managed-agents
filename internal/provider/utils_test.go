@@ -52,8 +52,8 @@ func TestNullableBool_False(t *testing.T) {
 	}
 }
 
-func TestEnvironmentModel_Fill_NoConfig(t *testing.T) {
-	var m EnvironmentModel
+func TestWIFEnvironmentModel_Fill_NoConfig(t *testing.T) {
+	var m WIFEnvironmentModel
 	m.fill(client.EnvironmentResponse{
 		ID:        "env_1",
 		Name:      "test",
@@ -81,9 +81,9 @@ func TestEnvironmentModel_Fill_NoConfig(t *testing.T) {
 	}
 }
 
-func TestEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
+func TestWIFEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 	trueVal := true
-	var m EnvironmentModel
+	var m WIFEnvironmentModel
 	m.fill(client.EnvironmentResponse{
 		ID:        "env_2",
 		Name:      "limited",
@@ -127,7 +127,7 @@ func TestEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 }
 
 func TestBuildAgentBody_MinimalFields(t *testing.T) {
-	data := AgentModel{
+	data := AgentCoreModel{
 		Name:       types.StringValue("my-agent"),
 		Model:      types.StringValue("claude-sonnet-4-6"),
 		ModelSpeed: types.StringValue("standard"),
@@ -163,7 +163,7 @@ func TestBuildAgentBody_MinimalFields(t *testing.T) {
 }
 
 func TestBuildAgentBody_AllFields(t *testing.T) {
-	data := AgentModel{
+	data := AgentCoreModel{
 		Name:        types.StringValue("my-agent"),
 		Model:       types.StringValue("claude-opus-4-7"),
 		ModelSpeed:  types.StringValue("fast"),
@@ -190,7 +190,7 @@ func TestBuildAgentBody_AllFields(t *testing.T) {
 }
 
 func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
-	data := AgentModel{
+	data := AgentCoreModel{
 		Name:       types.StringValue("a"),
 		Model:      types.StringValue("claude-sonnet-4-6"),
 		ModelSpeed: types.StringValue("standard"),
@@ -213,9 +213,9 @@ func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
 	}
 }
 
-func TestAgentModel_Fill(t *testing.T) {
+func TestAgentCoreModel_Fill(t *testing.T) {
 	desc := "an agent"
-	var m AgentModel
+	var m AgentCoreModel
 	m.fill(client.AgentResponse{
 		ID:          "agent_1",
 		Name:        "my-agent",

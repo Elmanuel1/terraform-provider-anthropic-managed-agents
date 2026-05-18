@@ -4,12 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -18,13 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-type AgentResource struct {
-	data *providerData
-}
-
-type AgentModel struct {
+type AgentCoreModel struct {
 	Id          types.String `tfsdk:"id"`
-	WorkspaceId types.String `tfsdk:"workspace_id"`
 	Name        types.String `tfsdk:"name"`
 	Model       types.String `tfsdk:"model"`
 	ModelSpeed  types.String `tfsdk:"model_speed"`
@@ -41,7 +32,7 @@ type AgentModel struct {
 	ArchivedAt  types.String `tfsdk:"archived_at"`
 }
 
-func (m *AgentModel) fill(a client.AgentResponse) {
+func (m *AgentCoreModel) fill(a client.AgentResponse) {
 	m.Id = types.StringValue(a.ID)
 	m.Name = types.StringValue(a.Name)
 	m.Model = types.StringValue(a.Model.ID)
@@ -63,7 +54,7 @@ func (m *AgentModel) fill(a client.AgentResponse) {
 	m.Metadata = fillMetadata(a.Metadata)
 }
 
-func buildAgentBody(data AgentModel) (map[string]any, error) {
+func buildAgentBody(data AgentCoreModel) (map[string]any, error) {
 	body := map[string]any{
 		"name": data.Name.ValueString(),
 		"model": map[string]string{
@@ -113,113 +104,72 @@ func buildAgentBody(data AgentModel) (map[string]any, error) {
 	return body, nil
 }
 
-func NewAgentResource() resource.Resource {
-	return &AgentResource{}
-}
-
-var _ resource.Resource = &AgentResource{}
-var _ resource.ResourceWithImportState = &AgentResource{}
-var _ resource.ResourceWithModifyPlan = &AgentResource{}
-
-func (r *AgentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_wif_agent"
-}
-
-func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		Description: "Manages an Anthropic agent.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"workspace_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Description:   "ID of the workspace this agent belongs to.",
-			},
-			"name": schema.StringAttribute{Required: true},
-			"model": schema.StringAttribute{
-				Required:    true,
-				Description: "Model ID, e.g. claude-opus-4-7 or claude-sonnet-4-6.",
-			},
-			"model_speed": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("standard"),
-				Description: "Inference speed: standard (default) or fast.",
-			},
-			"system":      schema.StringAttribute{Optional: true, Computed: true},
-			"description": schema.StringAttribute{Optional: true, Computed: true},
-			"tools": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-				Description:   `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
-			},
-			"mcp_servers": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-				Description:   `JSON-encoded MCP servers array. Example: [{"name":"my-server","type":"url","url":"https://..."}]. Maximum 20, names must be unique.`,
-			},
-			"skills": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-				Description:   `JSON-encoded skills array. Example: [{"type":"anthropic","skill_id":"xlsx"}]. Maximum 20.`,
-			},
-			"multiagent": schema.StringAttribute{
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-				Description:   `JSON-encoded multiagent coordinator config. Example: {"type":"coordinator","agents":["agent_id_1","agent_id_2"]}.`,
-			},
-			"metadata": schema.MapAttribute{
-				Optional:    true,
-				Computed:    true,
-				ElementType: types.StringType,
-				Description: "Arbitrary string key-value pairs attached to the agent.",
-			},
-			"version": schema.Int64Attribute{
-				Computed:      true,
-				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
-			},
-			"created_at": schema.StringAttribute{
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"updated_at": schema.StringAttribute{
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"archived_at": schema.StringAttribute{Computed: true},
+func agentCoreSchemaAttrs() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"id": schema.StringAttribute{
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 		},
+		"name": schema.StringAttribute{Required: true},
+		"model": schema.StringAttribute{
+			Required:    true,
+			Description: "Model ID, e.g. claude-opus-4-7 or claude-sonnet-4-6.",
+		},
+		"model_speed": schema.StringAttribute{
+			Optional:    true,
+			Computed:    true,
+			Default:     stringdefault.StaticString("standard"),
+			Description: "Inference speed: standard (default) or fast.",
+		},
+		"system":      schema.StringAttribute{Optional: true, Computed: true},
+		"description": schema.StringAttribute{Optional: true, Computed: true},
+		"tools": schema.StringAttribute{
+			Optional:      true,
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Description:   `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
+		},
+		"mcp_servers": schema.StringAttribute{
+			Optional:      true,
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Description:   `JSON-encoded MCP servers array. Example: [{"name":"my-server","type":"url","url":"https://..."}]. Maximum 20, names must be unique.`,
+		},
+		"skills": schema.StringAttribute{
+			Optional:      true,
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Description:   `JSON-encoded skills array. Example: [{"type":"anthropic","skill_id":"xlsx"}]. Maximum 20.`,
+		},
+		"multiagent": schema.StringAttribute{
+			Optional:      true,
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			Description:   `JSON-encoded multiagent coordinator config. Example: {"type":"coordinator","agents":["agent_id_1","agent_id_2"]}.`,
+		},
+		"metadata": schema.MapAttribute{
+			Optional:    true,
+			Computed:    true,
+			ElementType: types.StringType,
+			Description: "Arbitrary string key-value pairs attached to the agent.",
+		},
+		"version": schema.Int64Attribute{
+			Computed:      true,
+			PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+		},
+		"created_at": schema.StringAttribute{
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+		},
+		"updated_at": schema.StringAttribute{
+			Computed:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+		},
+		"archived_at": schema.StringAttribute{Computed: true},
 	}
 }
 
-// ModifyPlan marks server-managed fields (version, updated_at) as Unknown only
-// when an update is actually happening, preventing spurious no-op update plans.
-func (r *AgentResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// Destroy or create — nothing to do.
-	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
-		return
-	}
-	var plan, state AgentModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !agentUserFieldsChanged(plan, state) {
-		return
-	}
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("version"), types.Int64Unknown())...)
-	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("updated_at"), types.StringUnknown())...)
-}
-
-// agentUserFieldsChanged reports whether any user-controlled field differs between plan and state.
-func agentUserFieldsChanged(plan, state AgentModel) bool {
+func agentUserFieldsChanged(plan, state AgentCoreModel) bool {
 	return !plan.Name.Equal(state.Name) ||
 		!plan.System.Equal(state.System) ||
 		!plan.Description.Equal(state.Description) ||
@@ -230,135 +180,4 @@ func agentUserFieldsChanged(plan, state AgentModel) bool {
 		!plan.Skills.Equal(state.Skills) ||
 		!plan.Multiagent.Equal(state.Multiagent) ||
 		!plan.Metadata.Equal(state.Metadata)
-}
-
-func (r *AgentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	data, ok := req.ProviderData.(*providerData)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data type", fmt.Sprintf("got %T", req.ProviderData))
-		return
-	}
-	r.data = data
-}
-
-func (r *AgentResource) requireWIF(diags interface{ AddError(string, string) }) bool {
-	if r.data == nil || r.data.wif == nil {
-		diags.AddError("Missing WIF configuration",
-			"ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC or TFC_WORKLOAD_IDENTITY_TOKEN are required for agent resources.")
-		return false
-	}
-	return true
-}
-
-func (r *AgentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data AgentModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !r.requireWIF(&resp.Diagnostics) {
-		return
-	}
-
-	body, err := buildAgentBody(data)
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
-		return
-	}
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Create(ctx, body)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
-		return
-	}
-	data.fill(*agent)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
-
-func (r *AgentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data AgentModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !r.requireWIF(&resp.Diagnostics) {
-		return
-	}
-
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Read(ctx, data.Id.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent: %s", err))
-		return
-	}
-	if agent == nil {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-	data.fill(*agent)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
-
-func (r *AgentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data AgentModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	// Read version from prior state — the plan marks version Unknown so the API's
-	// incremented value is accepted, but we still need the current version number
-	// for the optimistic-lock field in the update request body.
-	var state AgentModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !r.requireWIF(&resp.Diagnostics) {
-		return
-	}
-
-	body, err := buildAgentBody(data)
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
-		return
-	}
-	body["version"] = state.Version.ValueInt64()
-
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	agent, err := c.Update(ctx, data.Id.ValueString(), body)
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent: %s", err))
-		return
-	}
-	data.fill(*agent)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
-
-func (r *AgentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data AgentModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if !r.requireWIF(&resp.Diagnostics) {
-		return
-	}
-
-	c := client.NewAgentClient(auth.WIFBearer{Config: r.data.wif, WorkspaceID: data.WorkspaceId.ValueString()})
-	if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent: %s", err))
-	}
-}
-
-func (r *AgentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/agent_id")
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }
