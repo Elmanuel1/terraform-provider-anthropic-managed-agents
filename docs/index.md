@@ -15,7 +15,7 @@ terraform {
   required_providers {
     anthropic = {
       source  = "Elmanuel1/anthropic-managed-agents"
-      version = "~> 0.0"
+      version = "~> 0.1"
     }
   }
 }
