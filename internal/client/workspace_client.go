@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 )
 
 const workspacesPath = "/v1/organizations/workspaces"

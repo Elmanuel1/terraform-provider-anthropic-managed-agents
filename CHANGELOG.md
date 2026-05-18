@@ -6,7 +6,7 @@ All notable changes to this provider are documented here.
 
 ## [0.1.0] (2026-05-18)
 
-Initial release of `Elmanuel1/anthropic-managed-agents`.
+Initial release of `Elmanuel1/anthropic`.
 
 ### Added
 

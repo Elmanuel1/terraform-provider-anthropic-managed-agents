@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 )
 
 func TestWorkspaceClient_ResolveByName_Found(t *testing.T) {

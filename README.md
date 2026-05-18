@@ -1,8 +1,8 @@
-# terraform-provider-anthropic-managed-agents
+# terraform-provider-anthropic
 
 Terraform provider for managing Anthropic platform resources.
 
-Registry: [registry.terraform.io/providers/Elmanuel1/anthropic-managed-agents](https://registry.terraform.io/providers/Elmanuel1/anthropic-managed-agents/latest)
+Registry: [registry.terraform.io/providers/Elmanuel1/anthropic](https://registry.terraform.io/providers/Elmanuel1/anthropic/latest)
 
 ## Resources
 
@@ -23,7 +23,7 @@ Registry: [registry.terraform.io/providers/Elmanuel1/anthropic-managed-agents](h
 terraform {
   required_providers {
     anthropic = {
-      source  = "Elmanuel1/anthropic-managed-agents"
+      source  = "Elmanuel1/anthropic"
       version = "~> 0.1"
     }
   }
@@ -91,14 +91,14 @@ The WIF token (`TFC_WORKLOAD_IDENTITY_TOKEN_ANTHROPIC` or `TFC_WORKLOAD_IDENTITY
 ## Local Development
 
 ```bash
-go build -o terraform-provider-anthropic-managed-agents .
+go build -o terraform-provider-anthropic .
 ```
 
 ```hcl
 # ~/.terraformrc
 provider_installation {
   dev_overrides {
-    "Elmanuel1/anthropic-managed-agents" = "/path/to/provider/binary"
+    "Elmanuel1/anthropic" = "/path/to/provider/binary"
   }
   direct {}
 }

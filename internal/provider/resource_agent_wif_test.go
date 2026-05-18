@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Elmanuel1/terraform-provider-anthropic-managed-agents/internal/auth"
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
