@@ -103,7 +103,7 @@ var _ resource.Resource = &EnvironmentResource{}
 var _ resource.ResourceWithImportState = &EnvironmentResource{}
 
 func (r *EnvironmentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_environment"
+	resp.TypeName = req.ProviderTypeName + "_wif_environment"
 }
 
 func (r *EnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

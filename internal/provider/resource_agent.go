@@ -122,7 +122,7 @@ var _ resource.ResourceWithImportState = &AgentResource{}
 var _ resource.ResourceWithModifyPlan = &AgentResource{}
 
 func (r *AgentResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_agent"
+	resp.TypeName = req.ProviderTypeName + "_wif_agent"
 }
 
 func (r *AgentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {

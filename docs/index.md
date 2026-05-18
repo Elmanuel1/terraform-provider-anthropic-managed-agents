@@ -1,18 +1,14 @@
 ---
-page_title: "anthropic-wif Provider"
+page_title: "anthropic Provider - Elmanuel1/anthropic-managed-agents"
 description: |-
   Terraform provider for managing Anthropic workspaces, agents, environments, vaults, vault credentials, and memory stores using Workload Identity Federation (WIF) via TFC OIDC.
 ---
 
-# anthropic-wif Provider
+# anthropic Provider
 
-Manage Anthropic platform resources (workspaces, agents, environments, vaults, and vault credentials) using Terraform and Workload Identity Federation (WIF).
-
-Workspace-scoped resources (agents, environments, vaults, vault credentials, memory stores) authenticate via a WIF bearer token minted from a TFC OIDC JWT. Workspace management uses the Anthropic Admin API key directly.
+Manage Anthropic platform resources using Terraform. Resources that are workspace-scoped authenticate via Workload Identity Federation (WIF). Resources managed at the organization level use the Anthropic Admin API key directly.
 
 ## Authentication
-
-The provider requires:
 
 | Environment Variable | Description | Required |
 |---|---|---|
@@ -30,7 +26,7 @@ Use `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC` (audience-specific) when the work
 1. **Workload Identity Issuer**: Console → Settings → Workload Identity → Create issuer
    - Issuer URL: `https://app.terraform.io`
    - JWKS source: `discovery`
-   - Max token lifetime: `2h` (covers the longest TFC runs)
+   - Max token lifetime: `2h`
 
 2. **Service Account**: Console → Settings → Service Accounts → Create
    - Assign `Workspace Developer` role on every workspace this service account needs to manage resources in
@@ -47,8 +43,6 @@ Use `TFC_WORKLOAD_IDENTITY_AUDIENCE_ANTHROPIC` (audience-specific) when the work
    claims.sub.matches("^organization:<tfc-org>:project:<tfc-project>:workspace:<tfc-workspace>:run_phase:(plan|apply)$")
    ```
 
-   Using `(plan|apply)` allows both plan and apply phases to exchange tokens. Restricting to `apply` only is also valid if you want tighter control.
-
 See the [Authentication Events guide](guides/authentication.md) for debugging token exchange failures.
 
 ## Example Usage
@@ -56,21 +50,21 @@ See the [Authentication Events guide](guides/authentication.md) for debugging to
 ```terraform
 terraform {
   required_providers {
-    anthropic-wif = {
-      source  = "Elmanuel1/anthropic-wif"
-      version = "~> 0.4"
+    anthropic = {
+      source  = "Elmanuel1/anthropic-managed-agents"
+      version = "~> 0.0"
     }
   }
 }
 
-provider "anthropic-wif" {}
+provider "anthropic" {}
 
-resource "anthropic-wif_workspace" "example" {
+resource "anthropic_workspace" "example" {
   name = "my-workspace"
 }
 
-resource "anthropic-wif_agent" "example" {
-  workspace_id = anthropic-wif_workspace.example.id
+resource "anthropic_wif_agent" "example" {
+  workspace_id = anthropic_workspace.example.id
   name         = "my-agent"
   model        = "claude-sonnet-4-6"
   system       = "You are a helpful assistant."
@@ -81,12 +75,12 @@ resource "anthropic-wif_agent" "example" {
 
 | Resource | Auth | Description |
 |---|---|---|
-| [`anthropic-wif_workspace`](resources/workspace.md) | Admin API key | Anthropic workspace |
-| [`anthropic-wif_agent`](resources/agent.md) | WIF | Agent with model, tools, and skills |
-| [`anthropic-wif_environment`](resources/environment.md) | WIF | Execution environment for agents |
-| [`anthropic-wif_vault`](resources/vault.md) | WIF | Vault for storing credentials |
-| [`anthropic-wif_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
-| [`anthropic-wif_memory_store`](resources/memory_store.md) | WIF | Memory store for agent persistence |
+| [`anthropic_workspace`](resources/workspace.md) | Admin API key | Anthropic workspace |
+| [`anthropic_memory_store`](resources/memory_store.md) | Admin API key | Memory store for agent persistence |
+| [`anthropic_wif_agent`](resources/agent.md) | WIF | Agent with model, tools, and skills |
+| [`anthropic_wif_environment`](resources/environment.md) | WIF | Execution environment for agents |
+| [`anthropic_wif_vault`](resources/vault.md) | WIF | Vault for storing credentials |
+| [`anthropic_wif_vault_credential`](resources/vault_credential.md) | WIF | Credential stored in a vault |
 
 ## Guides
 

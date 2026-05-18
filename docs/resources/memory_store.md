@@ -1,26 +1,24 @@
 ---
-page_title: "anthropic-wif_memory_store Resource"
+page_title: "anthropic_memory_store Resource - anthropic"
+subcategory: ""
 description: |-
   Manages an Anthropic memory store for agent persistence.
 ---
 
-# anthropic-wif_memory_store
+# anthropic_memory_store (Resource)
 
 Manages an Anthropic memory store. Memory stores provide persistent storage for agents across sessions, enabling long-term context and knowledge retention.
 
-Authenticates via WIF bearer token scoped to the `workspace_id`.
+Authenticates with the Anthropic Admin API key (`ANTHROPIC_ADMIN_API_KEY`).
 
-On destroy the memory store is **archived** by default. Set `force_delete = true` to permanently delete it.
-
-~> **Note:** Memory store support is in beta (`managed-agents-2026-04-01`). Auth requirements may change.
+On destroy the memory store is archived by default. Set `force_delete = true` to permanently delete it.
 
 ## Example Usage
 
 ```terraform
-resource "anthropic-wif_memory_store" "example" {
-  workspace_id = anthropic-wif_workspace.example.id
-  name         = "agent-memory"
-  description  = "Persistent memory for the procurement agent."
+resource "anthropic_memory_store" "example" {
+  name        = "agent-memory"
+  description = "Persistent memory for the procurement agent."
 
   metadata = {
     env  = "production"
@@ -29,29 +27,24 @@ resource "anthropic-wif_memory_store" "example" {
 }
 ```
 
-## Import
-
-Import by `workspace_id/memory_store_id`:
-
-```shell
-terraform import anthropic-wif_memory_store.example wrks_xxx/ms_yyy
-```
-
 ## Argument Reference
 
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `workspace_id` | string | Yes | Workspace ID. Changing this forces a new resource. |
-| `name` | string | Yes | Memory store name. |
-| `description` | string | No | Human-readable description. |
-| `metadata` | map(string) | No | Arbitrary string key-value pairs. |
-| `force_delete` | bool | No | When `true`, permanently deletes on destroy. Default `false` (archives). |
+* `name` - (Required) Memory store name.
+* `description` - (Optional) Human-readable description.
+* `metadata` - (Optional) Map of arbitrary string key-value pairs.
+* `force_delete` - (Optional) When `true`, permanently deletes on destroy. Default `false` (archives).
 
 ## Attribute Reference
 
-| Attribute | Type | Description |
-|---|---|---|
-| `id` | string | Memory store ID. |
-| `created_at` | string | ISO 8601 creation timestamp. |
-| `updated_at` | string | ISO 8601 last-updated timestamp. |
-| `archived_at` | string | ISO 8601 archival timestamp, or null if active. |
+* `id` - Memory store ID.
+* `created_at` - ISO 8601 creation timestamp.
+* `updated_at` - ISO 8601 last-updated timestamp.
+* `archived_at` - ISO 8601 archival timestamp, or null if active.
+
+## Import
+
+Import by memory store ID:
+
+```shell
+terraform import anthropic_memory_store.example ms_xxx
+```

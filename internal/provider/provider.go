@@ -24,7 +24,7 @@ type providerData struct {
 }
 
 func (p *wifProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "anthropic-wif"
+	resp.TypeName = "anthropic"
 }
 
 func (p *wifProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
