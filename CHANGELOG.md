@@ -4,6 +4,15 @@ All notable changes to this provider are documented here.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- `tools`, `mcp_servers`, `skills`, `multiagent` on `anthropic_agent` and `packages` on `anthropic_environment` now use `jsontypes.Normalized` instead of plain `types.String`. This fixes perpetual plan diffs caused by JSON key-ordering differences between the plan value and the API response.
+- The above fields now validate that their value is valid JSON at plan time. Previously any string was accepted silently.
+
+---
+
 ## [0.1.0] (2026-05-18)
 
 Initial release of `Elmanuel1/anthropic`.
