@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -32,7 +33,7 @@ type WIFEnvironmentModel struct {
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
-	Packages             types.String `tfsdk:"packages"`
+	Packages             jsontypes.Normalized `tfsdk:"packages"`
 	Metadata             types.Map    `tfsdk:"metadata"`
 	ForceDelete          types.Bool   `tfsdk:"force_delete"`
 	CreatedAt            types.String `tfsdk:"created_at"`
@@ -47,7 +48,7 @@ func nullableBool(b *bool) types.Bool {
 	return types.BoolValue(*b)
 }
 
-func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) {
+func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) error {
 	m.Id = types.StringValue(e.ID)
 	m.Name = types.StringValue(e.Name)
 	m.Description = nullableString(e.Description)
@@ -86,12 +87,17 @@ func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) {
 	}
 
 	if e.Config != nil {
-		m.Packages = normalizePackages(e.Config.Packages)
+		pkgs, err := normalizePackages(e.Config.Packages)
+		if err != nil {
+			return fmt.Errorf("marshaling packages: %w", err)
+		}
+		m.Packages = pkgs
 	} else {
-		m.Packages = types.StringNull()
+		m.Packages = jsontypes.NewNormalizedNull()
 	}
 
 	m.Metadata = fillMetadata(e.Metadata)
+	return nil
 }
 
 func NewWIFEnvironmentResource() resource.Resource {
@@ -153,6 +159,7 @@ func (r *WIFEnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"packages": schema.StringAttribute{
 				Optional:    true,
+				CustomType:  jsontypes.NormalizedType{},
 				Description: `JSON-encoded packages to pre-install. Example: {"pip":["pandas","numpy"],"npm":["express"]}. Supported managers: apt, cargo, gem, go, npm, pip.`,
 			},
 			"metadata": schema.MapAttribute{
@@ -258,7 +265,10 @@ func (r *WIFEnvironmentResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment: %s", err))
 		return
 	}
-	data.fill(*env)
+	if err := data.fill(*env); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling environment response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -281,7 +291,10 @@ func (r *WIFEnvironmentResource) Read(ctx context.Context, req resource.ReadRequ
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	data.fill(*env)
+	if err := data.fill(*env); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling environment response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -300,7 +313,10 @@ func (r *WIFEnvironmentResource) Update(ctx context.Context, req resource.Update
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update environment: %s", err))
 		return
 	}
-	data.fill(*env)
+	if err := data.fill(*env); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling environment response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 

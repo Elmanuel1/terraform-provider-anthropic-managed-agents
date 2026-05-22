@@ -2,11 +2,12 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
 
 // apiInjectedToolKeys are fields the API adds to tool objects that users never specify.
 // Stripping them keeps the stored JSON consistent with the plan value.
@@ -17,9 +18,10 @@ var apiInjectedToolKeys = map[string]bool{
 
 // marshalJSONList serializes a list of raw JSON items back to a JSON array string,
 // stripping any API-injected keys from each object so the stored value stays stable.
-func marshalJSONList(raw []json.RawMessage) types.String {
+// jsontypes.Normalized is used so key-ordering differences do not cause plan diffs.
+func marshalJSONList(raw []json.RawMessage) (jsontypes.Normalized, error) {
 	if len(raw) == 0 {
-		return types.StringValue("[]")
+		return jsontypes.NewNormalizedValue("[]"), nil
 	}
 	normalized := make([]json.RawMessage, 0, len(raw))
 	for _, item := range raw {
@@ -40,20 +42,21 @@ func marshalJSONList(raw []json.RawMessage) types.String {
 	}
 	b, err := json.Marshal(normalized)
 	if err != nil {
-		return types.StringValue("[]")
+		return jsontypes.Normalized{}, fmt.Errorf("marshaling JSON list: %w", err)
 	}
-	return types.StringValue(string(b))
+	return jsontypes.NewNormalizedValue(string(b)), nil
 }
 
 // normalizePackages converts the API packages response (which includes a "type" key
 // and empty manager arrays) to the sparse user-facing format, returning null when empty.
-func normalizePackages(raw json.RawMessage) types.String {
+// jsontypes.Normalized is used so key-ordering differences do not cause plan diffs.
+func normalizePackages(raw json.RawMessage) (jsontypes.Normalized, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return types.StringNull()
+		return jsontypes.NewNormalizedNull(), nil
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return types.StringValue(string(raw))
+		return jsontypes.Normalized{}, fmt.Errorf("parsing packages: %w", err)
 	}
 	delete(m, "type")
 	for k, v := range m {
@@ -63,10 +66,13 @@ func normalizePackages(raw json.RawMessage) types.String {
 		}
 	}
 	if len(m) == 0 {
-		return types.StringNull()
+		return jsontypes.NewNormalizedNull(), nil
 	}
-	b, _ := json.Marshal(m)
-	return types.StringValue(string(b))
+	b, err := json.Marshal(m)
+	if err != nil {
+		return jsontypes.Normalized{}, fmt.Errorf("marshaling packages: %w", err)
+	}
+	return jsontypes.NewNormalizedValue(string(b)), nil
 }
 
 func nullableString(s *string) types.String {

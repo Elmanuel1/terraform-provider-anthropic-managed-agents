@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -15,24 +16,24 @@ import (
 )
 
 type AgentCoreModel struct {
-	Id          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Model       types.String `tfsdk:"model"`
-	ModelSpeed  types.String `tfsdk:"model_speed"`
-	System      types.String `tfsdk:"system"`
-	Description types.String `tfsdk:"description"`
-	Tools       types.String `tfsdk:"tools"`
-	MCPServers  types.String `tfsdk:"mcp_servers"`
-	Skills      types.String `tfsdk:"skills"`
-	Multiagent  types.String `tfsdk:"multiagent"`
-	Metadata    types.Map    `tfsdk:"metadata"`
-	Version     types.Int64  `tfsdk:"version"`
-	CreatedAt   types.String `tfsdk:"created_at"`
-	UpdatedAt   types.String `tfsdk:"updated_at"`
-	ArchivedAt  types.String `tfsdk:"archived_at"`
+	Id          types.String         `tfsdk:"id"`
+	Name        types.String         `tfsdk:"name"`
+	Model       types.String         `tfsdk:"model"`
+	ModelSpeed  types.String         `tfsdk:"model_speed"`
+	System      types.String         `tfsdk:"system"`
+	Description types.String         `tfsdk:"description"`
+	Tools       jsontypes.Normalized `tfsdk:"tools"`
+	MCPServers  jsontypes.Normalized `tfsdk:"mcp_servers"`
+	Skills      jsontypes.Normalized `tfsdk:"skills"`
+	Multiagent  jsontypes.Normalized `tfsdk:"multiagent"`
+	Metadata    types.Map            `tfsdk:"metadata"`
+	Version     types.Int64          `tfsdk:"version"`
+	CreatedAt   types.String         `tfsdk:"created_at"`
+	UpdatedAt   types.String         `tfsdk:"updated_at"`
+	ArchivedAt  types.String         `tfsdk:"archived_at"`
 }
 
-func (m *AgentCoreModel) fill(a client.AgentResponse) {
+func (m *AgentCoreModel) fill(a client.AgentResponse) error {
 	m.Id = types.StringValue(a.ID)
 	m.Name = types.StringValue(a.Name)
 	m.Model = types.StringValue(a.Model.ID)
@@ -43,15 +44,32 @@ func (m *AgentCoreModel) fill(a client.AgentResponse) {
 	m.System = nullableString(a.System)
 	m.Description = nullableString(a.Description)
 	m.ArchivedAt = nullableString(a.ArchivedAt)
-	m.Tools = marshalJSONList(a.Tools)
-	m.MCPServers = marshalJSONList(a.MCPServers)
-	m.Skills = marshalJSONList(a.Skills)
-	if a.Multiagent != nil && string(*a.Multiagent) != "null" {
-		m.Multiagent = types.StringValue(string(*a.Multiagent))
-	} else {
-		m.Multiagent = types.StringNull()
-	}
 	m.Metadata = fillMetadata(a.Metadata)
+
+	tools, err := marshalJSONList(a.Tools)
+	if err != nil {
+		return fmt.Errorf("marshaling tools: %w", err)
+	}
+	m.Tools = tools
+
+	mcpServers, err := marshalJSONList(a.MCPServers)
+	if err != nil {
+		return fmt.Errorf("marshaling mcp_servers: %w", err)
+	}
+	m.MCPServers = mcpServers
+
+	skills, err := marshalJSONList(a.Skills)
+	if err != nil {
+		return fmt.Errorf("marshaling skills: %w", err)
+	}
+	m.Skills = skills
+
+	if a.Multiagent != nil && string(*a.Multiagent) != "null" {
+		m.Multiagent = jsontypes.NewNormalizedValue(string(*a.Multiagent))
+	} else {
+		m.Multiagent = jsontypes.NewNormalizedNull()
+	}
+	return nil
 }
 
 func buildAgentBody(data AgentCoreModel) (map[string]any, error) {
@@ -98,7 +116,9 @@ func buildAgentBody(data AgentCoreModel) (map[string]any, error) {
 	}
 	if !data.Metadata.IsNull() && !data.Metadata.IsUnknown() && len(data.Metadata.Elements()) > 0 {
 		meta := make(map[string]string, len(data.Metadata.Elements()))
-		data.Metadata.ElementsAs(context.Background(), &meta, false)
+		if diags := data.Metadata.ElementsAs(context.Background(), &meta, false); diags.HasError() {
+			return nil, fmt.Errorf("reading metadata: %s", diags)
+		}
 		body["metadata"] = meta
 	}
 	return body, nil
@@ -126,24 +146,28 @@ func agentCoreSchemaAttrs() map[string]schema.Attribute {
 		"tools": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
+			CustomType:    jsontypes.NormalizedType{},
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			Description:   `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
 		},
 		"mcp_servers": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
+			CustomType:    jsontypes.NormalizedType{},
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			Description:   `JSON-encoded MCP servers array. Example: [{"name":"my-server","type":"url","url":"https://..."}]. Maximum 20, names must be unique.`,
 		},
 		"skills": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
+			CustomType:    jsontypes.NormalizedType{},
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			Description:   `JSON-encoded skills array. Example: [{"type":"anthropic","skill_id":"xlsx"}]. Maximum 20.`,
 		},
 		"multiagent": schema.StringAttribute{
 			Optional:      true,
 			Computed:      true,
+			CustomType:    jsontypes.NormalizedType{},
 			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			Description:   `JSON-encoded multiagent coordinator config. Example: {"type":"coordinator","agents":["agent_id_1","agent_id_2"]}.`,
 		},

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -24,14 +25,14 @@ type EnvironmentDataModel struct {
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
-	Packages             types.String `tfsdk:"packages"`
+	Packages             jsontypes.Normalized `tfsdk:"packages"`
 	Metadata             types.Map    `tfsdk:"metadata"`
 	CreatedAt            types.String `tfsdk:"created_at"`
 	UpdatedAt            types.String `tfsdk:"updated_at"`
 	ArchivedAt           types.String `tfsdk:"archived_at"`
 }
 
-func (m *EnvironmentDataModel) fill(e client.EnvironmentResponse) {
+func (m *EnvironmentDataModel) fill(e client.EnvironmentResponse) error {
 	m.Id = types.StringValue(e.ID)
 	m.Name = types.StringValue(e.Name)
 	m.Description = nullableString(e.Description)
@@ -69,10 +70,15 @@ func (m *EnvironmentDataModel) fill(e client.EnvironmentResponse) {
 		}
 	}
 	if e.Config != nil {
-		m.Packages = normalizePackages(e.Config.Packages)
+		pkgs, err := normalizePackages(e.Config.Packages)
+		if err != nil {
+			return fmt.Errorf("marshaling packages: %w", err)
+		}
+		m.Packages = pkgs
 	} else {
-		m.Packages = types.StringNull()
+		m.Packages = jsontypes.NewNormalizedNull()
 	}
+	return nil
 }
 
 func NewEnvironmentDataSource() datasource.DataSource {
@@ -98,7 +104,7 @@ func (d *EnvironmentDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 			"allowed_hosts":          schema.ListAttribute{Computed: true, ElementType: types.StringType},
 			"allow_mcp_servers":      schema.BoolAttribute{Computed: true},
 			"allow_package_managers": schema.BoolAttribute{Computed: true},
-			"packages":               schema.StringAttribute{Computed: true, Description: "JSON-encoded packages map."},
+			"packages":               schema.StringAttribute{Computed: true, CustomType: jsontypes.NormalizedType{}, Description: "JSON-encoded packages map."},
 			"metadata":               schema.MapAttribute{Computed: true, ElementType: types.StringType},
 			"created_at":             schema.StringAttribute{Computed: true},
 			"updated_at":             schema.StringAttribute{Computed: true},
@@ -138,6 +144,9 @@ func (d *EnvironmentDataSource) Read(ctx context.Context, req datasource.ReadReq
 		resp.Diagnostics.AddError("Not Found", fmt.Sprintf("Environment %q not found.", data.Id.ValueString()))
 		return
 	}
-	data.fill(*e)
+	if err := data.fill(*e); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling environment response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -54,12 +55,14 @@ func TestNullableBool_False(t *testing.T) {
 
 func TestWIFEnvironmentModel_Fill_NoConfig(t *testing.T) {
 	var m WIFEnvironmentModel
-	m.fill(client.EnvironmentResponse{
+	if err := m.fill(client.EnvironmentResponse{
 		ID:        "env_1",
 		Name:      "test",
 		CreatedAt: "2024-01-01T00:00:00Z",
 		UpdatedAt: "2024-01-02T00:00:00Z",
-	})
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if m.Id.ValueString() != "env_1" {
 		t.Errorf("unexpected id: %s", m.Id.ValueString())
@@ -84,7 +87,7 @@ func TestWIFEnvironmentModel_Fill_NoConfig(t *testing.T) {
 func TestWIFEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 	trueVal := true
 	var m WIFEnvironmentModel
-	m.fill(client.EnvironmentResponse{
+	if err := m.fill(client.EnvironmentResponse{
 		ID:        "env_2",
 		Name:      "limited",
 		CreatedAt: "2024-01-01T00:00:00Z",
@@ -110,7 +113,9 @@ func TestWIFEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 				AllowPackageManagers: nil,
 			},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if m.NetworkingType.ValueString() != "limited" {
 		t.Errorf("expected limited, got %s", m.NetworkingType.ValueString())
@@ -128,12 +133,12 @@ func TestWIFEnvironmentModel_Fill_LimitedNetworking(t *testing.T) {
 
 func TestBuildAgentBody_MinimalFields(t *testing.T) {
 	data := AgentCoreModel{
-		Name:       types.StringValue("my-agent"),
-		Model:      types.StringValue("claude-sonnet-4-6"),
-		ModelSpeed: types.StringValue("standard"),
-		System:     types.StringNull(),
+		Name:        types.StringValue("my-agent"),
+		Model:       types.StringValue("claude-sonnet-4-6"),
+		ModelSpeed:  types.StringValue("standard"),
+		System:      types.StringNull(),
 		Description: types.StringNull(),
-		Tools:      types.StringNull(),
+		Tools:       jsontypes.NewNormalizedNull(),
 	}
 
 	body, err := buildAgentBody(data)
@@ -169,7 +174,7 @@ func TestBuildAgentBody_AllFields(t *testing.T) {
 		ModelSpeed:  types.StringValue("fast"),
 		System:      types.StringValue("you are helpful"),
 		Description: types.StringValue("desc"),
-		Tools:       types.StringValue(`[{"type":"agent_toolset_20260401"}]`),
+		Tools:       jsontypes.NewNormalizedValue(`[{"type":"agent_toolset_20260401"}]`),
 	}
 
 	body, err := buildAgentBody(data)
@@ -191,12 +196,12 @@ func TestBuildAgentBody_AllFields(t *testing.T) {
 
 func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
 	data := AgentCoreModel{
-		Name:       types.StringValue("a"),
-		Model:      types.StringValue("claude-sonnet-4-6"),
-		ModelSpeed: types.StringValue("standard"),
-		System:     types.StringNull(),
+		Name:        types.StringValue("a"),
+		Model:       types.StringValue("claude-sonnet-4-6"),
+		ModelSpeed:  types.StringValue("standard"),
+		System:      types.StringNull(),
 		Description: types.StringNull(),
-		Tools:      types.StringValue("[]"),
+		Tools:       jsontypes.NewNormalizedValue("[]"),
 	}
 
 	body, err := buildAgentBody(data)
@@ -216,7 +221,7 @@ func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
 func TestAgentCoreModel_Fill(t *testing.T) {
 	desc := "an agent"
 	var m AgentCoreModel
-	m.fill(client.AgentResponse{
+	if err := m.fill(client.AgentResponse{
 		ID:          "agent_1",
 		Name:        "my-agent",
 		System:      nil,
@@ -228,7 +233,9 @@ func TestAgentCoreModel_Fill(t *testing.T) {
 			ID    string `json:"id"`
 			Speed string `json:"speed"`
 		}{ID: "claude-sonnet-4-6", Speed: "standard"},
-	})
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if m.Id.ValueString() != "agent_1" {
 		t.Errorf("unexpected id: %s", m.Id.ValueString())

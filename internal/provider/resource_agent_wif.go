@@ -119,7 +119,10 @@ func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
 	}
-	data.AgentCoreModel.fill(*agent)
+	if err := data.AgentCoreModel.fill(*agent); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling agent response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -144,7 +147,10 @@ func (r *WIFAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	data.AgentCoreModel.fill(*agent)
+	if err := data.AgentCoreModel.fill(*agent); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling agent response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -177,7 +183,10 @@ func (r *WIFAgentResource) Update(ctx context.Context, req resource.UpdateReques
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent: %s", err))
 		return
 	}
-	data.AgentCoreModel.fill(*agent)
+	if err := data.AgentCoreModel.fill(*agent); err != nil {
+		resp.Diagnostics.AddError("Internal Error", fmt.Sprintf("marshaling agent response: %s", err))
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
