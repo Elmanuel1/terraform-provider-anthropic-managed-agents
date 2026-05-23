@@ -18,5 +18,6 @@ const (
 	APIVersion        = "2023-06-01"
 	AdminBeta         = "admin-api-2025-05-21"
 	AgentsBeta        = "managed-agents-2026-04-01"
+	SkillsBeta        = "skills-2025-10-02"
 
 )
