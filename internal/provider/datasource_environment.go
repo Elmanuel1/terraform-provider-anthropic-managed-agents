@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -25,7 +24,7 @@ type EnvironmentDataModel struct {
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
-	Packages             jsontypes.Normalized `tfsdk:"packages"`
+	Packages             PackagesValue `tfsdk:"packages"`
 	Metadata             types.Map    `tfsdk:"metadata"`
 	CreatedAt            types.String `tfsdk:"created_at"`
 	UpdatedAt            types.String `tfsdk:"updated_at"`
@@ -70,13 +69,13 @@ func (m *EnvironmentDataModel) fill(e client.EnvironmentResponse) error {
 		}
 	}
 	if e.Config != nil {
-		pkgs, err := normalizePackages(e.Config.Packages)
-		if err != nil {
-			return fmt.Errorf("marshaling packages: %w", err)
+		if len(e.Config.Packages) > 0 && string(e.Config.Packages) != "null" {
+			m.Packages = NewPackagesValue(string(e.Config.Packages))
+		} else {
+			m.Packages = NewPackagesNull()
 		}
-		m.Packages = pkgs
 	} else {
-		m.Packages = jsontypes.NewNormalizedNull()
+		m.Packages = NewPackagesNull()
 	}
 	return nil
 }
@@ -104,7 +103,7 @@ func (d *EnvironmentDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 			"allowed_hosts":          schema.ListAttribute{Computed: true, ElementType: types.StringType},
 			"allow_mcp_servers":      schema.BoolAttribute{Computed: true},
 			"allow_package_managers": schema.BoolAttribute{Computed: true},
-			"packages":               schema.StringAttribute{Computed: true, CustomType: jsontypes.NormalizedType{}, Description: "JSON-encoded packages map."},
+			"packages":               schema.StringAttribute{Computed: true, CustomType: PackagesType{}, Description: "JSON-encoded packages map."},
 			"metadata":               schema.MapAttribute{Computed: true, ElementType: types.StringType},
 			"created_at":             schema.StringAttribute{Computed: true},
 			"updated_at":             schema.StringAttribute{Computed: true},

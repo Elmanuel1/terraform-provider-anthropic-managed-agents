@@ -20,12 +20,6 @@ func marshalJSONList(raw []json.RawMessage) (jsontypes.Normalized, error) {
 	return jsontypes.NewNormalizedValue(string(b)), nil
 }
 
-func normalizePackages(raw json.RawMessage) (jsontypes.Normalized, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return jsontypes.NewNormalizedNull(), nil
-	}
-	return jsontypes.NewNormalizedValue(string(raw)), nil
-}
 
 func nullableString(s *string) types.String {
 	if s == nil {

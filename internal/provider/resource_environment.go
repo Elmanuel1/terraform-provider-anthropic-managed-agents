@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -33,7 +32,7 @@ type WIFEnvironmentModel struct {
 	AllowedHosts         types.List   `tfsdk:"allowed_hosts"`
 	AllowMCPServers      types.Bool   `tfsdk:"allow_mcp_servers"`
 	AllowPackageManagers types.Bool   `tfsdk:"allow_package_managers"`
-	Packages             jsontypes.Normalized `tfsdk:"packages"`
+	Packages             PackagesValue `tfsdk:"packages"`
 	Metadata             types.Map    `tfsdk:"metadata"`
 	ForceDelete          types.Bool   `tfsdk:"force_delete"`
 	CreatedAt            types.String `tfsdk:"created_at"`
@@ -87,13 +86,13 @@ func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) error {
 	}
 
 	if e.Config != nil {
-		pkgs, err := normalizePackages(e.Config.Packages)
-		if err != nil {
-			return fmt.Errorf("marshaling packages: %w", err)
+		if len(e.Config.Packages) > 0 && string(e.Config.Packages) != "null" {
+			m.Packages = NewPackagesValue(string(e.Config.Packages))
+		} else {
+			m.Packages = NewPackagesNull()
 		}
-		m.Packages = pkgs
 	} else {
-		m.Packages = jsontypes.NewNormalizedNull()
+		m.Packages = NewPackagesNull()
 	}
 
 	m.Metadata = fillMetadata(e.Metadata)
@@ -159,7 +158,7 @@ func (r *WIFEnvironmentResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"packages": schema.StringAttribute{
 				Optional:    true,
-				CustomType:  jsontypes.NormalizedType{},
+				CustomType:  PackagesType{},
 				Description: `JSON-encoded packages to pre-install. Example: {"pip":["pandas","numpy"],"npm":["express"]}. Supported managers: apt, cargo, gem, go, npm, pip.`,
 			},
 			"metadata": schema.MapAttribute{
