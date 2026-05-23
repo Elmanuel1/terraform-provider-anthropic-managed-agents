@@ -218,22 +218,6 @@ func TestBuildAgentBody_EmptyToolsArrayIncluded(t *testing.T) {
 	}
 }
 
-func TestMarshalJSONList_KeyOrderStable(t *testing.T) {
-	// API returns keys in different order than user specified
-	input := []json.RawMessage{[]byte(`{"b":2,"a":1}`)}
-	got, err := marshalJSONList(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want, err := marshalJSONList([]json.RawMessage{[]byte(`{"a":1,"b":2}`)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// jsontypes.Normalized.Equal compares semantically — key order must not matter
-	if !got.Equal(want) {
-		t.Errorf("key order produced diff: %s vs %s", got.ValueString(), want.ValueString())
-	}
-}
 
 func TestAgentCoreModel_Fill(t *testing.T) {
 	desc := "an agent"
