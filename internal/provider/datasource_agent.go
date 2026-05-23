@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -42,22 +41,22 @@ func agentCoreDSAttrs() map[string]dsschema.Attribute {
 		"description": dsschema.StringAttribute{Computed: true},
 		"tools": dsschema.StringAttribute{
 			Computed:    true,
-			CustomType:  jsontypes.NormalizedType{},
+			CustomType:  JSONSubsetType{},
 			Description: `JSON-encoded tools array. Example: [{"type":"agent_toolset_20260401"}]`,
 		},
 		"mcp_servers": dsschema.StringAttribute{
 			Computed:    true,
-			CustomType:  jsontypes.NormalizedType{},
+			CustomType:  JSONSubsetType{},
 			Description: `JSON-encoded MCP servers array. Example: [{"name":"my-server","type":"url","url":"https://..."}]. Maximum 20, names must be unique.`,
 		},
 		"skills": dsschema.StringAttribute{
 			Computed:    true,
-			CustomType:  jsontypes.NormalizedType{},
+			CustomType:  JSONSubsetType{},
 			Description: `JSON-encoded skills array. Example: [{"type":"anthropic","skill_id":"xlsx"}]. Maximum 20.`,
 		},
 		"multiagent": dsschema.StringAttribute{
 			Computed:    true,
-			CustomType:  jsontypes.NormalizedType{},
+			CustomType:  JSONSubsetType{},
 			Description: `JSON-encoded multiagent coordinator config. Example: {"type":"coordinator","agents":["agent_id_1","agent_id_2"]}.`,
 		},
 		"metadata": dsschema.MapAttribute{

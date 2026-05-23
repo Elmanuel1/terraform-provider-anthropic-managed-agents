@@ -4,20 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func marshalJSONList(raw []json.RawMessage) (jsontypes.Normalized, error) {
+func marshalJSONList(raw []json.RawMessage) (JSONSubsetValue, error) {
 	if len(raw) == 0 {
-		return jsontypes.NewNormalizedValue("[]"), nil
+		return NewJSONSubsetValue("[]"), nil
 	}
 	b, err := json.Marshal(raw)
 	if err != nil {
-		return jsontypes.Normalized{}, fmt.Errorf("marshaling JSON list: %w", err)
+		return JSONSubsetValue{}, fmt.Errorf("marshaling JSON list: %w", err)
 	}
-	return jsontypes.NewNormalizedValue(string(b)), nil
+	return NewJSONSubsetValue(string(b)), nil
 }
 
 
