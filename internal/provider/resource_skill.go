@@ -250,7 +250,20 @@ func computeSourceHash(sourceDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("walking %q: %w", sourceDir, err)
 	}
+	if len(files) == 0 {
+		return "", fmt.Errorf("source_dir %q is empty", sourceDir)
+	}
 	sort.Strings(files)
+	found := false
+	for _, f := range files {
+		if f == "SKILL.md" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("source_dir %q is missing required SKILL.md at root", sourceDir)
+	}
 
 	h := sha256.New()
 	for _, rel := range files {
