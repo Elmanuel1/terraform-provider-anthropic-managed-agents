@@ -41,14 +41,14 @@ func NewSkillClient(creds auth.AdminAPIKey) *SkillClient {
 	return &SkillClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
-// Create uploads a new skill from sourceDir via multipart POST to /v1/skills?beta=true.
+// Create uploads a new skill from sourceDir via multipart POST to /v1/skills.
 func (c *SkillClient) Create(ctx context.Context, displayTitle, sourceDir string) (*SkillResponse, error) {
 	body, contentType, err := buildMultipartBody(displayTitle, sourceDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating skill: building multipart body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, auth.BaseURL+skillsPath+"?beta=true", body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, auth.BaseURL+skillsPath, body)
 	if err != nil {
 		return nil, fmt.Errorf("creating skill: building request: %w", err)
 	}
@@ -76,10 +76,10 @@ func (c *SkillClient) Create(ctx context.Context, displayTitle, sourceDir string
 	return &s, nil
 }
 
-// Read fetches a skill by ID from GET /v1/skills/{id}?beta=true.
+// Read fetches a skill by ID from GET /v1/skills/{id}.
 // Returns nil if the skill is not found (404).
 func (c *SkillClient) Read(ctx context.Context, id string) (*SkillResponse, error) {
-	raw, status, err := c.doJSON(ctx, http.MethodGet, skillsPath+"/"+url.PathEscape(id)+"?beta=true", nil)
+	raw, status, err := c.doJSON(ctx, http.MethodGet, skillsPath+"/"+url.PathEscape(id), nil)
 	if err != nil {
 		return nil, fmt.Errorf("reading skill: %w", err)
 	}
@@ -99,7 +99,7 @@ func (c *SkillClient) Read(ctx context.Context, id string) (*SkillResponse, erro
 
 // Delete removes a skill. 404 is treated as success (already deleted).
 func (c *SkillClient) Delete(ctx context.Context, id string) error {
-	_, status, err := c.doJSON(ctx, http.MethodDelete, skillsPath+"/"+url.PathEscape(id)+"?beta=true", nil)
+	_, status, err := c.doJSON(ctx, http.MethodDelete, skillsPath+"/"+url.PathEscape(id), nil)
 	if err != nil {
 		return fmt.Errorf("deleting skill: %w", err)
 	}
@@ -116,7 +116,7 @@ func (c *SkillClient) CreateVersion(ctx context.Context, id, sourceDir string) (
 		return nil, fmt.Errorf("creating skill version: building multipart body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, auth.BaseURL+skillsPath+"/"+url.PathEscape(id)+"/versions?beta=true", body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, auth.BaseURL+skillsPath+"/"+url.PathEscape(id)+"/versions", body)
 	if err != nil {
 		return nil, fmt.Errorf("creating skill version: building request: %w", err)
 	}
