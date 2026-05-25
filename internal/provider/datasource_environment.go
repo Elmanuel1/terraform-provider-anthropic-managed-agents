@@ -42,7 +42,7 @@ func (m *EnvironmentDataModel) fill(e client.EnvironmentResponse) error {
 	m.UpdatedAt = types.StringValue(e.UpdatedAt)
 	m.ArchivedAt = nullableString(e.ArchivedAt)
 	m.Scope = nullableString(e.Scope)
-	if e.Config == nil || e.Config.Type == "cloud" {
+	if e.Config == nil || e.Config.Type == "" || e.Config.Type == "cloud" {
 		m.Type = types.StringValue("cloud")
 	} else if e.Config.Type == "self_hosted" {
 		m.Type = types.StringValue("self_hosted")

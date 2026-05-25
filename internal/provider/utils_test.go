@@ -257,11 +257,34 @@ func TestWIFEnvironmentModel_Fill_SelfHosted(t *testing.T) {
 	}
 }
 
+// TestWIFEnvironmentModel_Fill_CloudDefault verifies that a nil Config
+// (the common case for unrestricted cloud environments) defaults to "cloud".
 func TestWIFEnvironmentModel_Fill_CloudDefault(t *testing.T) {
 	var m WIFEnvironmentModel
 	if err := m.fill(client.EnvironmentResponse{
 		ID:        "env_4",
 		Name:      "cloud-env",
+		CreatedAt: "2024-01-01T00:00:00Z",
+		UpdatedAt: "2024-01-02T00:00:00Z",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if m.Type.ValueString() != "cloud" {
+		t.Errorf("expected type=cloud, got %s", m.Type.ValueString())
+	}
+	if !m.Scope.IsNull() {
+		t.Errorf("expected null scope for cloud env, got %s", m.Scope.ValueString())
+	}
+}
+
+// TestWIFEnvironmentModel_Fill_CloudExplicit verifies that an explicit
+// config.type of "cloud" is accepted without error.
+func TestWIFEnvironmentModel_Fill_CloudExplicit(t *testing.T) {
+	var m WIFEnvironmentModel
+	if err := m.fill(client.EnvironmentResponse{
+		ID:        "env_4b",
+		Name:      "cloud-env-explicit",
 		CreatedAt: "2024-01-01T00:00:00Z",
 		UpdatedAt: "2024-01-02T00:00:00Z",
 		Config: &struct {
@@ -282,9 +305,6 @@ func TestWIFEnvironmentModel_Fill_CloudDefault(t *testing.T) {
 
 	if m.Type.ValueString() != "cloud" {
 		t.Errorf("expected type=cloud, got %s", m.Type.ValueString())
-	}
-	if !m.Scope.IsNull() {
-		t.Errorf("expected null scope for cloud env, got %s", m.Scope.ValueString())
 	}
 }
 

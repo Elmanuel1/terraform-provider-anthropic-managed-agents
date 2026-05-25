@@ -58,7 +58,7 @@ func (m *WIFEnvironmentModel) fill(e client.EnvironmentResponse) error {
 	m.UpdatedAt = types.StringValue(e.UpdatedAt)
 	m.ArchivedAt = nullableString(e.ArchivedAt)
 	m.Scope = nullableString(e.Scope)
-	if e.Config == nil || e.Config.Type == "cloud" {
+	if e.Config == nil || e.Config.Type == "" || e.Config.Type == "cloud" {
 		m.Type = types.StringValue("cloud")
 	} else if e.Config.Type == "self_hosted" {
 		m.Type = types.StringValue("self_hosted")
@@ -221,9 +221,10 @@ func (r *WIFEnvironmentResource) Configure(_ context.Context, req resource.Confi
 
 func (r *WIFEnvironmentResource) buildBody(ctx context.Context, data WIFEnvironmentModel) map[string]any {
 	var config map[string]any
-	if data.Type.ValueString() == "self_hosted" {
+	envType := data.Type.ValueString()
+	if envType == "self_hosted" {
 		config = map[string]any{"type": "self_hosted"}
-	} else {
+	} else if envType == "" || envType == "cloud" {
 		networking := map[string]any{"type": data.NetworkingType.ValueString()}
 		if data.NetworkingType.ValueString() == "limited" {
 			var hosts []string
@@ -241,6 +242,9 @@ func (r *WIFEnvironmentResource) buildBody(ctx context.Context, data WIFEnvironm
 				config["packages"] = pkgs
 			}
 		}
+	} else {
+		// Pass unrecognized types through so the API rejects them explicitly.
+		config = map[string]any{"type": envType}
 	}
 
 	body := map[string]any{
