@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -114,7 +115,7 @@ func (r *WIFAgentResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("Invalid agent configuration", err.Error())
 		return
 	}
-	agent, err := client.NewAgentClient(creds).Create(ctx, body)
+	agent, err := client.NewAgentClient(auth.WithBeta(creds, auth.AgentsBeta)).Create(ctx, body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create agent: %s", err))
 		return
@@ -138,7 +139,7 @@ func (r *WIFAgentResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	agent, err := client.NewAgentClient(creds).Read(ctx, data.Id.ValueString())
+	agent, err := client.NewAgentClient(auth.WithBeta(creds, auth.AgentsBeta)).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent: %s", err))
 		return
@@ -178,7 +179,7 @@ func (r *WIFAgentResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 	body["version"] = state.Version.ValueInt64()
 
-	agent, err := client.NewAgentClient(creds).Update(ctx, data.Id.ValueString(), body)
+	agent, err := client.NewAgentClient(auth.WithBeta(creds, auth.AgentsBeta)).Update(ctx, data.Id.ValueString(), body)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update agent: %s", err))
 		return
@@ -202,7 +203,7 @@ func (r *WIFAgentResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	if err := client.NewAgentClient(creds).Delete(ctx, data.Id.ValueString()); err != nil {
+	if err := client.NewAgentClient(auth.WithBeta(creds, auth.AgentsBeta)).Delete(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive agent: %s", err))
 	}
 }

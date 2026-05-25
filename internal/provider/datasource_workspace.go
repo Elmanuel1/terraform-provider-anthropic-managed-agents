@@ -92,7 +92,7 @@ func (d *WorkspaceDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: d.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: d.data.adminKey}, auth.AdminBeta))
 
 	id := data.Id.ValueString()
 	if id == "" {

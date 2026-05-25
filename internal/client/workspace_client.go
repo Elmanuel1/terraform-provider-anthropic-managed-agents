@@ -29,7 +29,7 @@ type WorkspaceClient struct {
 	fetchErr   error
 }
 
-func NewWorkspaceClient(creds auth.AdminAPIKey) *WorkspaceClient {
+func NewWorkspaceClient(creds auth.Credentials) *WorkspaceClient {
 	return &WorkspaceClient{creds: creds, httpClient: defaultHTTPClient}
 }
 

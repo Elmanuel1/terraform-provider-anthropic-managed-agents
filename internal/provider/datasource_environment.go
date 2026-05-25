@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -134,7 +135,7 @@ func (d *EnvironmentDataSource) Read(ctx context.Context, req datasource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	e, err := client.NewEnvironmentClient(creds).Read(ctx, data.Id.ValueString())
+	e, err := client.NewEnvironmentClient(auth.WithBeta(creds, auth.AgentsBeta)).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment: %s", err))
 		return

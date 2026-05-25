@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dsschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -118,7 +119,7 @@ func (d *AgentDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	a, err := client.NewAgentClient(creds).Read(ctx, data.Id.ValueString())
+	a, err := client.NewAgentClient(auth.WithBeta(creds, auth.AgentsBeta)).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read agent: %s", err))
 		return
