@@ -11,6 +11,7 @@ import (
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -98,7 +99,7 @@ func (r *SkillResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
-func (r *SkillResource) skillClient(ctx context.Context, diags interface{ AddError(string, string) }) *client.SkillClient {
+func (r *SkillResource) skillClient(ctx context.Context, diags *diag.Diagnostics) *client.SkillClient {
 	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_skill", "", diags)
 	if creds == nil {
 		return nil
