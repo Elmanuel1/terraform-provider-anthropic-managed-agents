@@ -81,15 +81,15 @@ func (d *SkillDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	if d.data == nil || d.data.adminKey == "" {
+	if d.data == nil || d.data.workspaceAPIKey == "" {
 		resp.Diagnostics.AddError(
-			"Missing admin API key",
-			"Set admin_api_key in the provider block. Required for anthropic_skill data source.",
+			"Missing workspace API key",
+			"Set workspace_api_key in the provider block or ANTHROPIC_API_KEY environment variable. Required for anthropic_skill data source.",
 		)
 		return
 	}
 
-	c := client.NewSkillClient(auth.AdminAPIKey{Key: d.data.adminKey, Beta: auth.SkillsBeta})
+	c := client.NewSkillClient(auth.WorkspaceAPIKey{Key: d.data.workspaceAPIKey, Beta: auth.SkillsBeta})
 	s, err := c.Read(ctx, data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read skill: %s", err))

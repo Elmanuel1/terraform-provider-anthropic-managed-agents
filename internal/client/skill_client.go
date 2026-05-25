@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 )
@@ -33,11 +34,11 @@ type SkillVersionResponse struct {
 }
 
 type SkillClient struct {
-	creds      auth.AdminAPIKey
+	creds      auth.WorkspaceAPIKey
 	httpClient *http.Client
 }
 
-func NewSkillClient(creds auth.AdminAPIKey) *SkillClient {
+func NewSkillClient(creds auth.WorkspaceAPIKey) *SkillClient {
 	return &SkillClient{creds: creds, httpClient: defaultHTTPClient}
 }
 
@@ -97,9 +98,26 @@ func (c *SkillClient) Read(ctx context.Context, id string) (*SkillResponse, erro
 	return &s, nil
 }
 
-// Delete removes a skill. 404 is treated as success (already deleted).
+// Delete removes a skill and all its versions. 404 is treated as success.
+// The API requires all versions to be deleted before the skill itself can be deleted.
 func (c *SkillClient) Delete(ctx context.Context, id string) error {
-	_, status, err := c.doJSON(ctx, http.MethodDelete, skillsPath+"/"+url.PathEscape(id), nil)
+	// List all versions and delete each one first.
+	versions, err := c.listVersions(ctx, id)
+	if err != nil {
+		return fmt.Errorf("deleting skill: listing versions: %w", err)
+	}
+	for _, v := range versions {
+		raw, status, err := c.doJSON(ctx, http.MethodDelete,
+			skillsPath+"/"+url.PathEscape(id)+"/versions/"+url.PathEscape(v)+"?beta=true", nil)
+		if err != nil {
+			return fmt.Errorf("deleting skill version %q: %w", v, err)
+		}
+		if status != http.StatusOK && status != http.StatusNoContent && status != http.StatusNotFound {
+			return fmt.Errorf("deleting skill version %q returned HTTP %d: %s", v, status, raw)
+		}
+	}
+
+	_, status, err := c.doJSON(ctx, http.MethodDelete, skillsPath+"/"+url.PathEscape(id)+"?beta=true", nil)
 	if err != nil {
 		return fmt.Errorf("deleting skill: %w", err)
 	}
@@ -107,6 +125,34 @@ func (c *SkillClient) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("deleting skill returned HTTP %d", status)
 	}
 	return nil
+}
+
+// listVersions returns the numeric version timestamps for all versions of a skill.
+func (c *SkillClient) listVersions(ctx context.Context, id string) ([]string, error) {
+	raw, status, err := c.doJSON(ctx, http.MethodGet,
+		skillsPath+"/"+url.PathEscape(id)+"/versions?beta=true", nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing versions: %w", err)
+	}
+	if status == http.StatusNotFound {
+		return nil, nil
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("listing versions returned HTTP %d: %s", status, raw)
+	}
+	var result struct {
+		Data []struct {
+			Version string `json:"version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf("parsing versions response: %w", err)
+	}
+	versions := make([]string, len(result.Data))
+	for i, v := range result.Data {
+		versions[i] = v.Version
+	}
+	return versions, nil
 }
 
 // CreateVersion uploads new source files as a new version of an existing skill.
@@ -200,6 +246,14 @@ func buildMultipartBody(displayTitle, sourceDir string) (*bytes.Buffer, string, 
 		return nil, "", fmt.Errorf("source directory %q is missing required SKILL.md at root", sourceDir)
 	}
 
+	// The API requires every file path to be prefixed with the skill name declared
+	// in SKILL.md frontmatter (e.g. "my-skill/SKILL.md"). Parse the name now so we
+	// can validate and prefix before opening the multipart writer.
+	skillName, err := parseSkillName(filepath.Join(sourceDir, "SKILL.md"))
+	if err != nil {
+		return nil, "", err
+	}
+
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
@@ -210,7 +264,7 @@ func buildMultipartBody(displayTitle, sourceDir string) (*bytes.Buffer, string, 
 	}
 
 	for _, rel := range files {
-		fw, err := w.CreateFormFile("files", rel)
+		fw, err := w.CreateFormFile("files[]", skillName+"/"+rel)
 		if err != nil {
 			return nil, "", fmt.Errorf("creating form file for %q: %w", rel, err)
 		}
@@ -228,4 +282,37 @@ func buildMultipartBody(displayTitle, sourceDir string) (*bytes.Buffer, string, 
 	}
 
 	return &buf, w.FormDataContentType(), nil
+}
+
+// parseSkillName reads the YAML frontmatter from SKILL.md and returns the value
+// of the `name` field. The API requires all file paths to be prefixed with this
+// name (e.g. "my-skill/SKILL.md") and the prefix must match the name exactly.
+func parseSkillName(skillMDPath string) (string, error) {
+	content, err := os.ReadFile(skillMDPath)
+	if err != nil {
+		return "", fmt.Errorf("reading SKILL.md: %w", err)
+	}
+	s := string(content)
+	if !strings.HasPrefix(s, "---") {
+		return "", fmt.Errorf("SKILL.md must start with YAML frontmatter (---)")
+	}
+	// Find the closing ---
+	rest := s[3:]
+	end := strings.Index(rest, "---")
+	if end == -1 {
+		return "", fmt.Errorf("SKILL.md frontmatter is not closed (missing second ---)")
+	}
+	frontmatter := rest[:end]
+	for _, line := range strings.Split(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "name:") {
+			name := strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+			name = strings.Trim(name, `"'`)
+			if name == "" {
+				return "", fmt.Errorf("SKILL.md frontmatter has empty 'name' field")
+			}
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("SKILL.md frontmatter is missing required 'name' field")
 }

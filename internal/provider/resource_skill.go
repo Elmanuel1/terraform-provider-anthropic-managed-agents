@@ -98,21 +98,21 @@ func (r *SkillResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
-func (r *SkillResource) requireAdminKey(diags interface{ AddError(string, string) }) bool {
-	if r.data == nil || r.data.adminKey == "" {
-		diags.AddError("Missing admin API key",
-			"Set admin_api_key in the provider block or ANTHROPIC_ADMIN_API_KEY environment variable. Required for anthropic_skill.")
+func (r *SkillResource) requireWorkspaceKey(diags interface{ AddError(string, string) }) bool {
+	if r.data == nil || r.data.workspaceAPIKey == "" {
+		diags.AddError("Missing workspace API key",
+			"Set workspace_api_key in the provider block or ANTHROPIC_API_KEY environment variable. Required for anthropic_skill.")
 		return false
 	}
 	return true
 }
 
 func (r *SkillResource) skillClient() *client.SkillClient {
-	return client.NewSkillClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.SkillsBeta})
+	return client.NewSkillClient(auth.WorkspaceAPIKey{Key: r.data.workspaceAPIKey, Beta: auth.SkillsBeta})
 }
 
 func (r *SkillResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	if !r.requireAdminKey(&resp.Diagnostics) {
+	if !r.requireWorkspaceKey(&resp.Diagnostics) {
 		return
 	}
 	var data SkillModel
@@ -142,7 +142,7 @@ func (r *SkillResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *SkillResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	if !r.requireAdminKey(&resp.Diagnostics) {
+	if !r.requireWorkspaceKey(&resp.Diagnostics) {
 		return
 	}
 	var data SkillModel
@@ -172,7 +172,7 @@ func (r *SkillResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (r *SkillResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	if !r.requireAdminKey(&resp.Diagnostics) {
+	if !r.requireWorkspaceKey(&resp.Diagnostics) {
 		return
 	}
 	var plan, state SkillModel
@@ -216,7 +216,7 @@ func (r *SkillResource) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (r *SkillResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if !r.requireAdminKey(&resp.Diagnostics) {
+	if !r.requireWorkspaceKey(&resp.Diagnostics) {
 		return
 	}
 	var data SkillModel
