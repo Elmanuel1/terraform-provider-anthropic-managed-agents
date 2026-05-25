@@ -7,6 +7,7 @@ import (
 )
 
 // WorkspaceAPIKey authenticates using a workspace-scoped Anthropic API key.
+// Wrap with WithBeta to set the anthropic-beta header for a specific endpoint.
 type WorkspaceAPIKey struct {
 	Key string
 }
@@ -17,6 +18,5 @@ func (w WorkspaceAPIKey) Authenticate(_ context.Context, req *http.Request) erro
 	}
 	req.Header.Set(HeaderAPIKey, w.Key)
 	req.Header.Set(HeaderVersion, APIVersion)
-	req.Header.Set(HeaderBeta, AgentsBeta)
 	return nil
 }

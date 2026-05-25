@@ -132,7 +132,7 @@ func (r *MemoryStoreResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AgentsBeta))
 	s, err := c.Create(ctx, buildMemoryStoreBody(ctx, data, &resp.Diagnostics))
 	if resp.Diagnostics.HasError() {
 		return
@@ -155,7 +155,7 @@ func (r *MemoryStoreResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AgentsBeta))
 	s, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read memory store: %s", err))
@@ -179,7 +179,7 @@ func (r *MemoryStoreResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AgentsBeta))
 	s, err := c.Update(ctx, data.Id.ValueString(), buildMemoryStoreBody(ctx, data, &resp.Diagnostics))
 	if resp.Diagnostics.HasError() {
 		return
@@ -202,7 +202,7 @@ func (r *MemoryStoreResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: r.data.adminKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AgentsBeta))
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete memory store: %s", err))

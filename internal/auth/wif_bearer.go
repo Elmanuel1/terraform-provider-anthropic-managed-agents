@@ -30,7 +30,6 @@ func (w WIFBearer) Authenticate(ctx context.Context, req *http.Request) error {
 		if time.Now().Before(tok.ExpiresAt.Add(-30 * time.Second)) {
 			req.Header.Set(HeaderAuth, "Bearer "+tok.AccessToken)
 			req.Header.Set(HeaderVersion, APIVersion)
-			req.Header.Set(HeaderBeta, AgentsBeta)
 			return nil
 		}
 	}
@@ -42,6 +41,5 @@ func (w WIFBearer) Authenticate(ctx context.Context, req *http.Request) error {
 	w.Config.tokenCache.Store(w.WorkspaceID, tok)
 	req.Header.Set(HeaderAuth, "Bearer "+tok.AccessToken)
 	req.Header.Set(HeaderVersion, APIVersion)
-	req.Header.Set(HeaderBeta, AgentsBeta)
 	return nil
 }

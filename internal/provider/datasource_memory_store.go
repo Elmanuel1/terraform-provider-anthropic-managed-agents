@@ -97,7 +97,7 @@ func (d *MemoryStoreDataSource) Read(ctx context.Context, req datasource.ReadReq
 		return
 	}
 
-	c := client.NewMemoryStoreClient(auth.AdminAPIKey{Key: d.data.adminKey, Beta: auth.AgentsBeta})
+	c := client.NewMemoryStoreClient(auth.WithBeta(auth.AdminAPIKey{Key: d.data.adminKey}, auth.AgentsBeta))
 	store, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read memory store: %s", err))

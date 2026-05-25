@@ -18,6 +18,18 @@ func TestWorkspaceAPIKey_Authenticate(t *testing.T) {
 	if got := req.Header.Get("x-api-key"); got != "sk-ant-api03-test" {
 		t.Errorf("expected x-api-key header, got %q", got)
 	}
+	// WorkspaceAPIKey does not set a beta header — callers use WithBeta explicitly.
+	if got := req.Header.Get("anthropic-beta"); got != "" {
+		t.Errorf("expected no beta header from bare WorkspaceAPIKey, got %q", got)
+	}
+}
+
+func TestWithBeta_SetsHeader(t *testing.T) {
+	creds := auth.WithBeta(auth.WorkspaceAPIKey{Key: "sk-ant-api03-test"}, auth.AgentsBeta)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.anthropic.com/v1/agents", nil)
+	if err := creds.Authenticate(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got := req.Header.Get("anthropic-beta"); got != auth.AgentsBeta {
 		t.Errorf("expected AgentsBeta header, got %q", got)
 	}

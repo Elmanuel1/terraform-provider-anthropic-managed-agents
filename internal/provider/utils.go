@@ -8,6 +8,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+func coalesce(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func marshalJSONList(raw []json.RawMessage) (JSONSubsetValue, error) {
 	if len(raw) == 0 {
 		return NewJSONSubsetValue("[]"), nil

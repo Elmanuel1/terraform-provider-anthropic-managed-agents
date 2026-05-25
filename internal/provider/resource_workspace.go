@@ -95,7 +95,7 @@ func (r *WorkspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AdminBeta))
 	w, err := c.Create(ctx, data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create workspace: %s", err))
@@ -115,7 +115,7 @@ func (r *WorkspaceResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AdminBeta))
 	w, err := c.Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read workspace: %s", err))
@@ -139,7 +139,7 @@ func (r *WorkspaceResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AdminBeta))
 	w, err := c.Update(ctx, data.Id.ValueString(), map[string]any{"name": data.Name.ValueString()})
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update workspace: %s", err))
@@ -159,7 +159,7 @@ func (r *WorkspaceResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AdminBeta))
 	if err := c.Archive(ctx, data.Id.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to archive workspace: %s", err))
 	}
@@ -169,7 +169,7 @@ func (r *WorkspaceResource) ImportState(ctx context.Context, req resource.Import
 	if !r.requireAdminKey(&resp.Diagnostics) {
 		return
 	}
-	c := client.NewWorkspaceClient(auth.AdminAPIKey{Key: r.data.adminKey})
+	c := client.NewWorkspaceClient(auth.WithBeta(auth.AdminAPIKey{Key: r.data.adminKey}, auth.AdminBeta))
 	id, err := c.ResolveByName(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Import Error", fmt.Sprintf("Unable to resolve workspace %q: %s", req.ID, err))

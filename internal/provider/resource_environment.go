@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -259,7 +260,7 @@ func (r *WIFEnvironmentResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	env, err := client.NewEnvironmentClient(creds).Create(ctx, r.buildBody(ctx, data))
+	env, err := client.NewEnvironmentClient(auth.WithBeta(creds, auth.AgentsBeta)).Create(ctx, r.buildBody(ctx, data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create environment: %s", err))
 		return
@@ -281,7 +282,7 @@ func (r *WIFEnvironmentResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	env, err := client.NewEnvironmentClient(creds).Read(ctx, data.Id.ValueString())
+	env, err := client.NewEnvironmentClient(auth.WithBeta(creds, auth.AgentsBeta)).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read environment: %s", err))
 		return
@@ -307,7 +308,7 @@ func (r *WIFEnvironmentResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	env, err := client.NewEnvironmentClient(creds).Update(ctx, data.Id.ValueString(), r.buildBody(ctx, data))
+	env, err := client.NewEnvironmentClient(auth.WithBeta(creds, auth.AgentsBeta)).Update(ctx, data.Id.ValueString(), r.buildBody(ctx, data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update environment: %s", err))
 		return
@@ -329,7 +330,7 @@ func (r *WIFEnvironmentResource) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	c := client.NewEnvironmentClient(creds)
+	c := client.NewEnvironmentClient(auth.WithBeta(creds, auth.AgentsBeta))
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete environment: %s", err))

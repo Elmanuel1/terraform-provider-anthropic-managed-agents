@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -137,7 +138,7 @@ func (r *WIFVaultResource) Create(ctx context.Context, req resource.CreateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	v, err := client.NewVaultClient(creds).Create(ctx, buildVaultBody(data))
+	v, err := client.NewVaultClient(auth.WithBeta(creds, auth.AgentsBeta)).Create(ctx, buildVaultBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create vault: %s", err))
 		return
@@ -156,7 +157,7 @@ func (r *WIFVaultResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	v, err := client.NewVaultClient(creds).Read(ctx, data.Id.ValueString())
+	v, err := client.NewVaultClient(auth.WithBeta(creds, auth.AgentsBeta)).Read(ctx, data.Id.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read vault: %s", err))
 		return
@@ -179,7 +180,7 @@ func (r *WIFVaultResource) Update(ctx context.Context, req resource.UpdateReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	v, err := client.NewVaultClient(creds).Update(ctx, data.Id.ValueString(), buildVaultBody(data))
+	v, err := client.NewVaultClient(auth.WithBeta(creds, auth.AgentsBeta)).Update(ctx, data.Id.ValueString(), buildVaultBody(data))
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update vault: %s", err))
 		return
@@ -198,7 +199,7 @@ func (r *WIFVaultResource) Delete(ctx context.Context, req resource.DeleteReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	c := client.NewVaultClient(creds)
+	c := client.NewVaultClient(auth.WithBeta(creds, auth.AgentsBeta))
 	if data.ForceDelete.ValueBool() {
 		if err := c.Delete(ctx, data.Id.ValueString()); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete vault: %s", err))

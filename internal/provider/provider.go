@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"os"
 
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -76,8 +77,8 @@ func (p *anthropicProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	adminKey := cfg.AdminAPIKey.ValueString()
-	workspaceAPIKey := cfg.WorkspaceAPIKey.ValueString()
+	adminKey := coalesce(cfg.AdminAPIKey.ValueString(), os.Getenv("ANTHROPIC_ADMIN_API_KEY"))
+	workspaceAPIKey := coalesce(cfg.WorkspaceAPIKey.ValueString(), os.Getenv("ANTHROPIC_API_KEY"))
 	ruleID := cfg.FederationRuleID.ValueString()
 	orgID := cfg.OrganizationID.ValueString()
 	svcID := cfg.ServiceAccountID.ValueString()
@@ -113,6 +114,7 @@ func (p *anthropicProvider) DataSources(_ context.Context) []func() datasource.D
 		NewVaultDataSource,
 		NewVaultCredentialDataSource,
 		NewMemoryStoreDataSource,
+		NewSkillDataSource,
 	}
 }
 
@@ -124,5 +126,6 @@ func (p *anthropicProvider) Resources(_ context.Context) []func() resource.Resou
 		NewWIFVaultResource,
 		NewWIFVaultCredentialResource,
 		NewMemoryStoreResource,
+		NewSkillResource,
 	}
 }
