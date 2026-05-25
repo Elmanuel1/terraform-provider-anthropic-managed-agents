@@ -4,6 +4,15 @@ All notable changes to this provider are documented here.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- `anthropic_environment` resource and data source now support a `type` attribute (`"cloud"` or `"self_hosted"`, default `"cloud"`). Changing `type` forces a new resource.
+- `anthropic_environment` resource and data source now expose a `scope` attribute (`"organization"` or `"account"`). Only meaningful for `self_hosted` environments; the API ignores it for `cloud` environments.
+
+---
+
 ## [0.3.1] (2026-05-22)
 
 ### Fixed
