@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"strings"
+
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/auth"
 	"github.com/Elmanuel1/terraform-provider-anthropic/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -26,6 +28,7 @@ type SkillResource struct {
 
 type SkillModel struct {
 	ID           types.String `tfsdk:"id"`
+	WorkspaceId  types.String `tfsdk:"workspace_id"`
 	DisplayTitle types.String `tfsdk:"display_title"`
 	SourceDir    types.String `tfsdk:"source_dir"`
 	SourceHash   types.String `tfsdk:"source_hash"`
@@ -38,7 +41,7 @@ func (m *SkillModel) fill(s client.SkillResponse) {
 	m.DisplayTitle = nullableString(s.DisplayTitle)
 	m.CreatedAt = types.StringValue(s.CreatedAt)
 	m.UpdatedAt = types.StringValue(s.UpdatedAt)
-	// SourceDir and SourceHash are not set here — they are managed locally.
+	// WorkspaceId, SourceDir, and SourceHash are managed locally — not set from API response.
 }
 
 func NewSkillResource() resource.Resource {
@@ -47,6 +50,7 @@ func NewSkillResource() resource.Resource {
 
 var _ resource.Resource = &SkillResource{}
 var _ resource.ResourceWithImportState = &SkillResource{}
+var _ resource.ResourceWithModifyPlan = &SkillResource{}
 
 func (r *SkillResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_skill"
@@ -54,11 +58,17 @@ func (r *SkillResource) Metadata(_ context.Context, req resource.MetadataRequest
 
 func (r *SkillResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages an Anthropic skill. Skills are uploaded from a local directory containing a SKILL.md file.",
+		Description: "Manages an Anthropic skill. Skills are uploaded from a local directory containing a SKILL.md file. " +
+			"Supports WIF (workspace_id required) and workspace API key authentication. WIF takes precedence when both are configured.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"workspace_id": schema.StringAttribute{
+				Optional:    true,
+				Description: "Workspace ID for WIF authentication. When set, WIF is used. When omitted, workspace_api_key is used.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"display_title": schema.StringAttribute{
 				Required:      true,
@@ -99,8 +109,20 @@ func (r *SkillResource) Configure(_ context.Context, req resource.ConfigureReque
 	r.data = data
 }
 
-func (r *SkillResource) skillClient(ctx context.Context, diags *diag.Diagnostics) *client.SkillClient {
-	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_skill", "", diags)
+func (r *SkillResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if r.data == nil {
+		return
+	}
+	var workspaceID types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("workspace_id"), &workspaceID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	validateWorkspaceCredentials(r.data, "anthropic_skill", workspaceID.ValueString(), workspaceID.IsUnknown(), &resp.Diagnostics)
+}
+
+func (r *SkillResource) skillClient(ctx context.Context, workspaceID string, diags *diag.Diagnostics) *client.SkillClient {
+	creds := resolveWorkspaceCredentials(ctx, r.data, "anthropic_skill", workspaceID, diags)
 	if creds == nil {
 		return nil
 	}
@@ -108,13 +130,13 @@ func (r *SkillResource) skillClient(ctx context.Context, diags *diag.Diagnostics
 }
 
 func (r *SkillResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	c := r.skillClient(ctx, &resp.Diagnostics)
-	if c == nil {
-		return
-	}
 	var data SkillModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	c := r.skillClient(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if c == nil {
 		return
 	}
 
@@ -138,15 +160,16 @@ func (r *SkillResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (r *SkillResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	c := r.skillClient(ctx, &resp.Diagnostics)
-	if c == nil {
-		return
-	}
 	var data SkillModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	c := r.skillClient(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if c == nil {
+		return
+	}
+
 	s, err := c.Read(ctx, data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read skill: %s", err))
@@ -167,14 +190,14 @@ func (r *SkillResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (r *SkillResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	c := r.skillClient(ctx, &resp.Diagnostics)
-	if c == nil {
-		return
-	}
 	var plan, state SkillModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	c := r.skillClient(ctx, state.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if c == nil {
 		return
 	}
 
@@ -186,7 +209,6 @@ func (r *SkillResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		}
 	}
 
-	// Refresh state after update.
 	s, err := c.Read(ctx, state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read skill after update: %s", err))
@@ -210,13 +232,13 @@ func (r *SkillResource) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (r *SkillResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	c := r.skillClient(ctx, &resp.Diagnostics)
-	if c == nil {
-		return
-	}
 	var data SkillModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	c := r.skillClient(ctx, data.WorkspaceId.ValueString(), &resp.Diagnostics)
+	if c == nil {
 		return
 	}
 	if err := c.Delete(ctx, data.ID.ValueString()); err != nil {
@@ -225,7 +247,19 @@ func (r *SkillResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (r *SkillResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	// Supports two formats:
+	//   workspace_id/skill_id  (WIF path)
+	//   skill_id               (workspace_api_key path)
+	parts := strings.SplitN(req.ID, "/", 2)
+	switch len(parts) {
+	case 2:
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("workspace_id"), parts[0])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	case 1:
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[0])...)
+	default:
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: workspace_id/skill_id or skill_id")
+	}
 }
 
 // computeSourceHash returns a stable SHA-256 hash of all files in sourceDir,

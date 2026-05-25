@@ -17,6 +17,7 @@ type SkillDataSource struct {
 
 type SkillDataModel struct {
 	ID           types.String `tfsdk:"id"`
+	WorkspaceId  types.String `tfsdk:"workspace_id"`
 	DisplayTitle types.String `tfsdk:"display_title"`
 	CreatedAt    types.String `tfsdk:"created_at"`
 	UpdatedAt    types.String `tfsdk:"updated_at"`
@@ -42,11 +43,15 @@ func (d *SkillDataSource) Metadata(_ context.Context, req datasource.MetadataReq
 
 func (d *SkillDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Reads an existing Anthropic skill by ID.",
+		Description: "Reads an existing Anthropic skill by ID. Supports WIF (workspace_id required) and workspace API key authentication.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:    true,
 				Description: "Skill ID.",
+			},
+			"workspace_id": schema.StringAttribute{
+				Optional:    true,
+				Description: "Workspace ID for WIF authentication. When set, WIF is used. When omitted, workspace_api_key is used.",
 			},
 			"display_title": schema.StringAttribute{
 				Computed:    true,
@@ -81,7 +86,7 @@ func (d *SkillDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	creds := resolveWorkspaceCredentials(ctx, d.data, "anthropic_skill", "", &resp.Diagnostics)
+	creds := resolveWorkspaceCredentials(ctx, d.data, "data.anthropic_skill", data.WorkspaceId.ValueString(), &resp.Diagnostics)
 	if creds == nil {
 		return
 	}
